@@ -18,6 +18,7 @@ class elasticRod
     void setMass();
     void setReferenceLength();
     void setVertexBoundaryCondition(Vector3d position, int k);
+    void setVertexPlanarBoundaryCondition(int dim);
     void setThetaBoundaryCondition(double desiredTheta, int k);
     void updateTimeStep();
     void computeElasticStiffness();

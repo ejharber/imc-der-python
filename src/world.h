@@ -22,41 +22,31 @@
 
 // include input file and option
 #include "setInput.h"
-
-extern double* meta_data;
+#include <math.h>
 
 class world
 {
 public:
-    world();
-    world(setInput &m_inputData);
+    world(string name, int n);
     ~world();
     void setRodStepper();
     void updateTimeStep();
-    int simulationRunning();
-    int numPoints();
-    double getScaledCoordinate(int i);
-    double getCurrentTime();
 
-    bool pulling();
-    bool isRender();
+    const double getCurrentTime();
+    const Eigen::VectorXd getStatePos();
+    const Eigen::VectorXd getStateVel();
 
-    // file output
-    void OpenFile(ofstream &outfile, string filename);
-    void CloseFile(ofstream &outfile);
-    void outputNodeCoordinates(ofstream &outfile);
-    bool CoutDataC(ofstream &outfile);
-
-    void updateTimeStep_data();
-
+    void setPointVel(Eigen::Vector3d u);
+    void setStatePos(Eigen::VectorXd x);
+    void setStateVel(Eigen::VectorXd u);
 
 private:
 
     // Physical parameters
     double RodLength;
-    double helixradius, helixpitch;
     double rodRadius;
     int numVertices;
+    double deltaLength;
     double youngM;
     double Poisson;
     double shearM;
@@ -64,19 +54,12 @@ private:
     double density;
     Vector3d gVector;
     double viscosity;
-    double pull_time;
-    double release_time;
-    double wait_time;
-    double pull_speed;
     double col_limit;
     double delta;
     double k_scaler;
     double mu;
     double nu;
-    double data_resolution;
-    int data_rate;
     int line_search;
-    string knot_config;
     double alpha;
 
     double tol, stol;
@@ -88,9 +71,6 @@ private:
     MatrixXd vertices;
     VectorXd theta;
 
-    // Rod
-    elasticRod *rod;
-
     // set up the time stepper
     timeStepper *stepper;
     double *totalForce;
@@ -100,10 +80,13 @@ private:
     int timeStep;
     double totalTime;
 
+    // Rod
+    elasticRod *rod;
+
     // declare the forces
     elasticStretchingForce *m_stretchForce;
-    elasticBendingForce *m_bendingForce;
-    elasticTwistingForce *m_twistingForce;
+    // elasticBendingForce *m_bendingForce;
+    // elasticTwistingForce *m_twistingForce;
     inertialForce *m_inertialForce;
     externalGravityForce *m_gravityForce;
     dampingForce *m_dampingForce;
@@ -111,7 +94,6 @@ private:
     contactPotentialIMC *m_contactPotentialIMC;
 
     int iter;
-    int total_iters;
 
     void rodGeometry();
     void rodBoundaryCondition();
@@ -121,19 +103,18 @@ private:
     void updateCons();
 
     void newtonMethod(bool &solved);
-    void printSimData();
     void newtonDamper();
     void calculateForce();
     void lineSearch();
 
-    bool render; // should the OpenGL rendering be included?
-
     Vector3d temp;
     Vector3d temp1;
+
     Vector3d gravity;
     Vector3d inertial;
     Vector3d dampingF;
 
+    Vector3d point_vel;
 };
 
 #endif

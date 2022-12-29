@@ -23,8 +23,37 @@ include_directories(${SYMENGINE_INCLUDE_DIRS}
 
 link_directories(${MKL_LIBRARY_DIR})
 
-add_executable(simDER
-        src/main.cpp
+# add_executable(simDER
+#         src/main.cpp
+#         src/world.cpp
+#         src/elasticRod.cpp
+#         src/elasticStretchingForce.cpp
+#         src/elasticBendingForce.cpp
+#         src/elasticTwistingForce.cpp
+#         src/externalGravityForce.cpp
+#         src/dampingForce.cpp
+#         src/inertialForce.cpp
+#         src/timeStepper.cpp
+#         src/setInput.cpp
+#         src/symbolicEquations.cpp
+#         src/collisionDetector.cpp
+#         src/contactPotentialIMC.cpp)
+
+# target_link_libraries(simDER
+#         ${SYMENGINE_LIBRARIES}
+#         ${OPENGL_LIBRARIES}
+#         ${GLUT_LIBRARIES}
+# #         ${MKL_LIBRARIES}
+#         Eigen3::Eigen
+#         lapack
+#         gfortran
+#         pthread
+#         rt
+#         m)
+
+add_subdirectory(pybind11)
+pybind11_add_module(pywrap
+        src/pywrap.cpp
         src/world.cpp
         src/elasticRod.cpp
         src/elasticStretchingForce.cpp
@@ -39,11 +68,11 @@ add_executable(simDER
         src/collisionDetector.cpp
         src/contactPotentialIMC.cpp)
 
-target_link_libraries(simDER
+target_link_libraries(pywrap PUBLIC
         ${SYMENGINE_LIBRARIES}
         ${OPENGL_LIBRARIES}
         ${GLUT_LIBRARIES}
-        ${MKL_LIBRARIES}
+#         ${MKL_LIBRARIES}
         Eigen3::Eigen
         lapack
         gfortran

@@ -123,12 +123,13 @@ void display(void)
     exit(0);
 }
 
+
 int main(int argc,char *argv[])
 {
     setInput inputData;
     inputData = setInput();
     inputData.LoadOptions(argv[1]);
-    inputData.LoadOptions(argc,argv);
+    // inputData.LoadOptions(argc,argv);
 
     //read input parameters from txt file and cmd
     myWorld = world(inputData);

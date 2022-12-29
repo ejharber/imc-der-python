@@ -143,6 +143,26 @@ void elasticRod::setVertexBoundaryCondition(Vector3d position, int k)
     x(4*k + 2) = position(2);
 }
 
+void elasticRod::setVertexPlanarBoundaryCondition(int dim)
+{
+    for (auto k=0; k < nv; k ++) {
+        if (dim == 0) { // x plane
+            isConstrained[4*k] = 1;
+            x(4*k) = 0.0;
+        }
+
+        if (dim == 1) { // y plane
+            isConstrained[4*k + 1] = 1;
+            x(4*k + 1) = 0.0;
+        }
+
+        if (dim == 2) { // z plane
+            isConstrained[4*k + 2] = 1;
+            x(4*k + 2) = 0.0;
+        }
+    }
+}
+
 void elasticRod::setVelocity(int k)
 {
     for (int i = 0; i< 4; i++)
