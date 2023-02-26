@@ -13,7 +13,7 @@ collisionDetector::collisionDetector(elasticRod &m_rod, double m_delta, double m
     surface_limit = scale * 2 * rod->rodRadius;
 
     num_edge_combos = 0;
-    int ignore_adjacent = 3;  // Here, we assume that no edge can collide with the next 3 adjacent edges on either side
+    int ignore_adjacent = 1;  // Here, we assume that no edge can collide with the next 3 adjacent edges on either side
     for (int i = 0; i < rod->ne; i++) {
         for (int j = i+ignore_adjacent+1; j < rod->ne; j++) {
             num_edge_combos++;

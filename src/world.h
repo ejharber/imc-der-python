@@ -33,12 +33,22 @@ public:
     void updateTimeStep();
 
     const double getCurrentTime();
+    
     const Eigen::VectorXd getStatePos();
     const Eigen::VectorXd getStateVel();
+    const Eigen::MatrixXd getStateD1();
+    const Eigen::MatrixXd getStateD2();
+    const Eigen::MatrixXd getStateTangent();
+    const Eigen::VectorXd getStateRefTwist();
 
-    void setPointVel(Eigen::Vector3d u);
     void setStatePos(Eigen::VectorXd x);
     void setStateVel(Eigen::VectorXd u);
+    void setStateD1(Eigen::MatrixXd d1_old);
+    void setStateD2(Eigen::MatrixXd d2_old);
+    void setStateTangent(Eigen::MatrixXd tangent_old);
+    void setStateRefTwist(Eigen::VectorXd refTwist_old);
+
+    void setPointVel(Eigen::Vector3d u);
 
 private:
 

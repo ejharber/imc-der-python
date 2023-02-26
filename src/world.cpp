@@ -202,6 +202,8 @@ void world::newtonDamper() {
         alpha *= 0.90;
     if (alpha < 0.1)
         alpha = 0.1;
+    // std::cout << alpha << std::endl;
+    // alpha = 1.0;
 }
 
 void world::newtonMethod(bool &solved) {
@@ -367,8 +369,26 @@ const Eigen::VectorXd world::getStatePos() {return rod->x;}
 
 const Eigen::VectorXd world::getStateVel() {return rod->u;}
 
-void world::setPointVel(Eigen::Vector3d u) {point_vel = u;}
+const Eigen::MatrixXd world::getStateD1() {return rod->d1;}
 
-void world::setStatePos(Eigen::VectorXd x) {rod->x = x;}
+const Eigen::MatrixXd world::getStateD2() {return rod->d2;}
+
+const Eigen::MatrixXd world::getStateTangent() {return rod->tangent;}
+
+const Eigen::VectorXd world::getStateRefTwist() {return rod->refTwist;}
+
+
+void world::setStatePos(Eigen::VectorXd x) {rod->x0 = x; rod->x = x;}
 
 void world::setStateVel(Eigen::VectorXd u) {rod->u = u;}
+
+void world::setStateD1(Eigen::MatrixXd d1) {rod->d1 = d1; rod->d1_old = d1;}
+
+void world::setStateD2(Eigen::MatrixXd d2) {rod->d2 = d2; rod->d2_old = d2;}
+
+void world::setStateTangent(Eigen::MatrixXd tangent) {rod->tangent = tangent; rod->tangent_old = tangent;}
+
+void world::setStateRefTwist(Eigen::VectorXd refTwist) {rod->refTwist = refTwist; rod->refTwist_old = refTwist;}
+
+
+void world::setPointVel(Eigen::Vector3d u) {point_vel = u;}
