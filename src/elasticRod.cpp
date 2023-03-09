@@ -461,7 +461,7 @@ void elasticRod::computeElasticStiffness()
 
 void elasticRod::prepareForIteration()
 {
-    computeTangent(x, tangent); // updated from x to x0
+    computeTangent(x, tangent);
     computeTimeParallel();
     getRefTwist();
     computeMaterialDirector();

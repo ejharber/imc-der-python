@@ -27,10 +27,10 @@
 class world
 {
 public:
-    world(string name, int n);
+    world(string name, int n, Eigen::MatrixXd poses, Eigen::VectorXd orientation, double length, double radius);
     ~world();
     void setRodStepper();
-    void updateTimeStep();
+    bool updateTimeStep();
 
     const double getCurrentTime();
     
@@ -80,6 +80,9 @@ private:
     // Geometry
     MatrixXd vertices;
     VectorXd theta;
+
+    MatrixXd vertices_home;
+    VectorXd theta_home;
 
     // set up the time stepper
     timeStepper *stepper;

@@ -1,40 +1,34 @@
 #include "world.h"
 
-world::world(string name, int n) {
+world::world(string name, int n, Eigen::MatrixXd poses, Eigen::VectorXd orientation, double length, double radius) {
 
     setInput m_inputData;
     m_inputData = setInput();
     m_inputData.LoadOptions(name);
 
-    // render = m_inputData.GetBoolOpt("render");                       // boolean
-    RodLength = m_inputData.GetScalarOpt("RodLength");               // meter
-    // helixradius = m_inputData.GetScalarOpt("helixradius");           // meter
+    RodLength = length;               // meter
     gVector = m_inputData.GetVecOpt("gVector");                            // m/s^2
     maxIter = m_inputData.GetIntOpt("maxIter");                      // maximum number of iterations
     // helixpitch = m_inputData.GetScalarOpt("helixpitch");             // meter
-    rodRadius = m_inputData.GetScalarOpt("rodRadius");               // meter
+    rodRadius = radius;               // meter
     // numVertices = m_inputData.GetIntOpt("numVertices");              // int_num
     numVertices = n;
+    vertices = poses;
+    // std::cout << poses << std::endl;
+    theta = orientation;
     youngM = m_inputData.GetScalarOpt("youngM");                     // Pa
     Poisson = m_inputData.GetScalarOpt("Poisson");                   // dimensionless
     deltaTime = m_inputData.GetScalarOpt("deltaTime");               // seconds
     tol = m_inputData.GetScalarOpt("tol");                           // small number like 10e-7
     stol = m_inputData.GetScalarOpt("stol");                         // small number, e.g. 0.1%
     density = m_inputData.GetScalarOpt("density");                   // kg/m^3
-    viscosity = m_inputData.GetScalarOpt("viscosity");               // viscosity in Pa-s
-    // data_resolution = m_inputData.GetScalarOpt("dataResolution");    // time resolution for recording data
-    // pull_time = m_inputData.GetScalarOpt("pullTime");                // get time of pulling
-    // release_time = m_inputData.GetScalarOpt("releaseTime");          // get time of loosening
-    // wait_time = m_inputData.GetScalarOpt("waitTime");                // get time of waiting
-    // pull_speed = m_inputData.GetScalarOpt("pullSpeed");              // get speed of pulling
-        
+    viscosity = m_inputData.GetScalarOpt("viscosity");               // viscosity in Pa-s   
     col_limit = m_inputData.GetScalarOpt("colLimit");                // distance limit for candidate set
     delta = m_inputData.GetScalarOpt("delta");                       // distance tolerance for contact
     k_scaler = m_inputData.GetScalarOpt("kScaler");                  // constant scaler for contact stiffness
     mu = m_inputData.GetScalarOpt("mu");                             // friction coefficient
     nu = m_inputData.GetScalarOpt("nu");                             // slipping tolerance for friction
     line_search = m_inputData.GetIntOpt("lineSearch");               // flag for enabling line search
-    // knot_config = m_inputData.GetStringOpt("knotConfig");            // get initial knot configuration
 
     shearM = youngM / (2.0 * (1.0 + Poisson));                             // shear modulus
 
@@ -43,6 +37,9 @@ world::world(string name, int n) {
     point_vel = Vector3d::Zero();
 
     deltaLength = (RodLength / (numVertices - 1));
+
+    // std::cout << deltaLength << std::endl;
+    // std::cout << vertices_home << std::endl;
 }
 
 world::~world() {
@@ -54,8 +51,8 @@ void world::setRodStepper() {
     rodGeometry();
 
     // Create the rod
-    rod = new elasticRod(vertices, vertices, density, rodRadius, deltaTime,
-                         youngM, shearM, RodLength, theta);
+    rod = new elasticRod(vertices, vertices_home, density, rodRadius, deltaTime,
+                         youngM, shearM, RodLength, theta_home);
 
     // Find out the tolerance, e.g. how small is enough?
     characteristicForce = M_PI * pow(rodRadius, 4) / 4.0 * youngM / pow(RodLength, 2);
@@ -93,15 +90,15 @@ void world::setRodStepper() {
 
 // Setup geometry
 void world::rodGeometry() {
+    // return;
+    vertices_home = MatrixXd(numVertices, 3);
 
-    vertices = MatrixXd(numVertices, 3);
-
-    theta = VectorXd::Zero(numVertices - 1);
+    theta_home = VectorXd::Zero(numVertices - 1);
 
     for (int i = 0; i < numVertices; i++) {
-        vertices(i, 0) = deltaLength*i;
-        vertices(i, 1) = 0.0;
-        vertices(i, 2) = 0.0;
+        vertices_home(i, 0) = deltaLength*i;
+        vertices_home(i, 1) = 0.0;
+        vertices_home(i, 2) = 0.0;
     }
 }
 
@@ -117,39 +114,40 @@ void world::rodBoundaryCondition() {
 }
 
 void world::updateBoundary() {
+
+    Eigen::VectorXd q0 = rod->getVertex(0); // vertex of node 0
+    Eigen::VectorXd q1 = rod->getVertex(1); // vertex of node 1
+
     Vector3d u;
     u(0) = point_vel(0);
     u(1) = 0;
     u(2) = point_vel(1);
 
-    rod->setVertexBoundaryCondition(rod->getVertex(0) + u * deltaTime, 0);
+    rod->setVertexBoundaryCondition(q0 + u * deltaTime, 0);
 
-    Eigen::VectorXd q0 = rod->getVertex(0);
-    Eigen::VectorXd q1 = rod->getVertex(1);
+    Eigen::VectorXd q_ = q0 - q1;
 
-    Eigen::VectorXd q_(2, 1);
-    q_(0, 0) =  q0(0) - q1(0);
-    q_(1, 0) =  q0(2) - q1(2);
+    Eigen::MatrixXd rot(3, 3);
+    rot(0, 0) = 0.0;
+    rot(0, 1) = 0.0;
+    rot(0, 2) = sin(M_PI / 2);
 
-    Eigen::MatrixXd rot(2, 2);
-    rot(0, 0) = cos(M_PI / 2);
-    rot(0, 1) = -sin(M_PI / 2);
-    rot(1, 0) = sin(M_PI / 2);
-    rot(1, 1) = cos(M_PI / 2);
+    rot(1, 0) = 0.0;
+    rot(1, 1) = 1.0;
+    rot(1, 2) = 0.0;
 
-    VectorXd u_(2, 1);
-    u_(0) = point_vel(0);
-    u_(1) = point_vel(1);
+    rot(2, 0) = -sin(M_PI / 2);
+    rot(2, 1) = 0.0;
+    rot(2, 2) = 0.0;
 
-    u_ = point_vel(2) * rot * q_ / q_.norm() * deltaLength + u_;
+    u += point_vel(2) * rot * q_ / q_.norm() * deltaLength;
     
-    Vector3d q_new;
-    q_new(0) = q1(0) + u_(0) * deltaTime;
-    q_new(1) = 0;    
-    q_new(2) = q1(2) + u_(1) * deltaTime;
-    
-    // maintain distance constraint            
-    q_new = q_new / q_new.norm() * deltaLength;
+    Vector3d q_new = q1 + u * deltaTime;
+
+    // maintain distance constraint         
+
+    Vector3d q_norm = q_new - (rod->getVertex(0) + u * deltaTime);
+    q_new = q_norm / q_norm.norm() * deltaLength + (rod->getVertex(0) + u * deltaTime);
 
     rod->setVertexBoundaryCondition(q_new, 1);
 }
@@ -160,7 +158,7 @@ void world::updateCons() {
     totalForce = stepper->getForce();
 }
 
-void world::updateTimeStep() {
+bool world::updateTimeStep() {
     bool solved = false;
 
     updateBoundary();
@@ -174,6 +172,7 @@ void world::updateTimeStep() {
 
     // printSimData();
 
+    return solved;
 }
 
 void world::calculateForce() {
@@ -203,7 +202,7 @@ void world::newtonDamper() {
     if (alpha < 0.1)
         alpha = 0.1;
     // std::cout << alpha << std::endl;
-    // alpha = 1.0;
+    alpha = 1.0;
 }
 
 void world::newtonMethod(bool &solved) {
@@ -284,9 +283,12 @@ void world::newtonMethod(bool &solved) {
         }
 
         // Exit if unable to converge
+        // this should not exit!
         if (iter > maxIter) {
             cout << "No convergence after " << maxIter << " iterations" << endl;
-            exit(1);
+            // return false;
+            // exit(1);
+            break;
         }
     }
 }
