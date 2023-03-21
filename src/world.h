@@ -27,7 +27,7 @@
 class world
 {
 public:
-    world(string name, int n, Eigen::MatrixXd poses, Eigen::VectorXd orientation, double length, double radius);
+    world(string name, Eigen::MatrixXd vertices_, Eigen::MatrixXd vertices_home_, double radius);
     ~world();
     void setRodStepper();
     bool updateTimeStep();
@@ -56,7 +56,7 @@ private:
     double RodLength;
     double rodRadius;
     int numVertices;
-    double deltaLength;
+    // double deltaLength;
     double youngM;
     double Poisson;
     double shearM;
@@ -108,7 +108,6 @@ private:
 
     int iter;
 
-    void rodGeometry();
     void rodBoundaryCondition();
 
     void updateBoundary();

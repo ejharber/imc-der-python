@@ -41,9 +41,12 @@ class Rope:
         self.fig, self.ax = None, None
         self.display_count = 0
 
-        self.radius = 0.0046 # should get these from sim
-        self.space_length = 0.01 # should get these from sim
-        self.length = (self. N - 1) * self.space_length
+        self.radius = 0.004 # should get these from sim
+        self.space_length_1 = 0.011 # should get these from sim
+        self.space_length_2 = 0.009 # should get these from sim
+
+        # self.length = (self. N - 1) * self.space_length
+        self.length = 0
 
         if seed is not None:
             full_state = self.getRandomPose(seed)
@@ -56,13 +59,19 @@ class Rope:
             poses = poses[:, :3]
         else:
             poses = np.zeros((3, self.N)).T
-            for i in range(self.N):
-                poses[i, 0] = self.space_length * i
+            for i in range(1, self.N):
+                if i % 2 == 0:
+                    poses[i, 0] = poses[i-1, 0] + self.space_length_1
+                    self.length += self.space_length_1
+                else:
+                    poses[i, 0] = poses[i-1, 0] + self.space_length_2
+                    self.length += self.space_length_2
+
             # print(poses.shape)
-        orientation = np.zeros(self.N - 1)
+        # orientation = np.zeros(self.N - 1)
 
         # print("start sim")
-        self._simulation = pywrap.world("option.txt", self.N, poses, orientation, self.length, self.radius)
+        self._simulation = pywrap.world("option.txt", np.copy(poses), np.copy(poses), self.radius)
 
         self.reset()
 
@@ -92,6 +101,14 @@ class Rope:
     def getState(self):
 
         x = self._simulation.getStatePos()
+
+        q_x = x[0::4]
+        q_y = x[2::4]
+
+        q = np.array([q_x, q_y])
+        # print(q.shape)
+        # print(np.linalg.norm(q[:, 1:] - q[:, :-1], axis = 0))
+
         u = self._simulation.getStateVel()
         d1 = self._simulation.getStateD1()
         d2 = self._simulation.getStateD2()
@@ -105,7 +122,7 @@ class Rope:
     def stepVel(self, u = None):
 
         if u is not None:
-            u[2] *= 5
+            # u[2] *= 1
             self._simulation.setPointVel(u)
 
         return self._simulation.stepSimulation()
@@ -161,8 +178,12 @@ class Rope:
 
                 theta = np.random.uniform(0, 2*np.pi)
 
-                x = x_last + self.space_length*np.cos(theta)
-                y = y_last + self.space_length*np.sin(theta)
+                if len(state) % 2 == 0:
+                    x = x_last + self.space_length_1*np.cos(theta)
+                    y = y_last + self.space_length_1*np.sin(theta)
+                else:
+                    x = x_last + self.space_length_2*np.cos(theta)
+                    y = y_last + self.space_length_2*np.sin(theta)
 
                 # Step 2: Check Collision for next bead
                 collision = False

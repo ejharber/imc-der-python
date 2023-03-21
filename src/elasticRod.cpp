@@ -217,7 +217,10 @@ void elasticRod::setReferenceLength()
     Vector3d dx;
     for (int i=0;i<ne;i++)
     {
-        refLen(i) = rodLength / ne;
+        Vector3d vec = nodesUndeformed.row(i) - nodesUndeformed.row(i + 1);
+        refLen(i) = vec.norm();
+        // std::cout << refLen(i) << std::endl;
+        // refLen(i) = rodLength / ne
     }
 
     voronoiLen = VectorXd(nv);

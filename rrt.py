@@ -62,7 +62,7 @@ class RRT:
             # Find closest node
             nearest_ind, _ = self.get_nearest_node_index(rnd_node, rnd_node.is_goal)
 
-            print(len(self.node_list), nearest_ind)
+            # print(len(self.node_list), nearest_ind)
 
             # Try to naviate towards new node
             new_node = self.stear_grad_decent(self.node_list[nearest_ind], rnd_node)
@@ -78,33 +78,39 @@ class RRT:
 
     def stear_grad_decent(self, from_node, to_node):
         def costFunction(rope_temp, inputs, N, start_state, goal_state):
-            
+
+            inputs = np.zeros((3, self.horizon))            
 
             rope_temp.setState(start_state)
             rope_temp.stepVel(inputs) 
             cost = rope_temp.costFun(rope_temp.getState(), goal_state)
             jac = np.ones((3, 1)) * cost
 
-            epsilon = 1e-4
+            epsilon = 1e-8
 
-            for i in range(3):
-                rope_temp.setState(start_state)
-                inputs[i, 0] += epsilon
-                success = rope_temp.stepVel(inputs)
-                if not success:
-                    return None
-                next_cost = rope_temp.costFun(rope_temp.getState(), goal_state)
-                jac[i] -= next_cost
-                inputs[i, 0] -= epsilon
+            for num_steps in range(50):
 
-            # print(jac)
-            jac /= np.linalg.norm(jac)
-            inputs = 10*jac*cost
-            # print(inputs, cost)
-            for i in range(3):
-                inputs[i, 0] = min(1, inputs[i, 0])
-                inputs[i, 0] = max(-1, inputs[i, 0])
-            # print(inputs, cost)
+                for i in range(3):
+                    rope_temp.setState(start_state)
+                    inputs[i, 0] += epsilon
+                    success = rope_temp.stepVel(inputs)
+                    if not success:
+                        return None
+                    next_cost = rope_temp.costFun(rope_temp.getState(), goal_state)
+                    jac[i] -= next_cost
+                    inputs[i, 0] -= epsilon
+
+                print(jac)
+                # jac /= np.linalg.norm(jac)
+                inputs += .00001*jac
+                # print("cost", cost)
+                # for i in range(3):
+                #     inputs[i, 0] = min(1, inputs[i, 0])
+                #     inputs[i, 0] = max(-1, inputs[i, 0])
+                # print(inputs, cost)
+                if np.max(abs(inputs) > 2):
+                    print(np.max(abs(inputs)))
+
             return inputs
 
         inputs = np.zeros((3, self.horizon))
@@ -116,10 +122,11 @@ class RRT:
         self.rope.setState(from_node.state)
         path = []
 
-        for step in range(100000):
+        for step in range(1000):
             inputs = costFunction(rope_temp, np.copy(inputs), self.rope.N, self.rope.getState(), to_node.state)
 
             if inputs is None:
+                time.sleep(10)
                 return None
 
             success = self.rope.stepVel(inputs) 
@@ -210,7 +217,7 @@ def main():
     num_cores = 1
 
     for num_beads in range(11, 12):
-        for seed in range(10):
+        for seed in range(7,10):
 
             print(num_beads, seed)
 

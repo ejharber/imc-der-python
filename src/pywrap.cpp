@@ -17,7 +17,7 @@ PYBIND11_MODULE(pywrap, m)
     m.doc() = "pybind11 example plugin";
 
      py::class_<world>(m, "world")
-        .def(py::init<string, int, Eigen::MatrixXd, Eigen::VectorXd, double, double>())
+        .def(py::init<string, Eigen::MatrixXd, Eigen::MatrixXd, double>())
         .def("getCurrentTime", &world::getCurrentTime)
         .def("setupSimulation", &world::setRodStepper)
         .def("stepSimulation", &world::updateTimeStep)

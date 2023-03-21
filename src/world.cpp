@@ -1,21 +1,35 @@
 #include "world.h"
 
-world::world(string name, int n, Eigen::MatrixXd poses, Eigen::VectorXd orientation, double length, double radius) {
+world::world(string name, Eigen::MatrixXd vertices_, Eigen::MatrixXd vertices_home_, double radius) {
 
     setInput m_inputData;
     m_inputData = setInput();
     m_inputData.LoadOptions(name);
 
-    RodLength = length;               // meter
+    // simulation parameters
     gVector = m_inputData.GetVecOpt("gVector");                            // m/s^2
     maxIter = m_inputData.GetIntOpt("maxIter");                      // maximum number of iterations
-    // helixpitch = m_inputData.GetScalarOpt("helixpitch");             // meter
+    line_search = m_inputData.GetIntOpt("lineSearch");               // flag for enabling line search
+    alpha = 1.0;                                                           // newton step size
+
     rodRadius = radius;               // meter
-    // numVertices = m_inputData.GetIntOpt("numVertices");              // int_num
-    numVertices = n;
-    vertices = poses;
-    // std::cout << poses << std::endl;
-    theta = orientation;
+
+    numVertices = vertices_.rows();
+    
+    vertices = vertices_;
+    theta = VectorXd::Zero(numVertices - 1);
+
+    vertices_home = vertices_home_;
+    theta_home = VectorXd::Zero(numVertices - 1);
+
+    RodLength = 0;               // meter
+
+    for (int i = 0; i < numVertices-1; i++) {
+        Vector3d vec = vertices_home.row(i) - vertices_home.row(i + 1);
+        RodLength += vec.norm();
+    }
+
+    // physics parameters
     youngM = m_inputData.GetScalarOpt("youngM");                     // Pa
     Poisson = m_inputData.GetScalarOpt("Poisson");                   // dimensionless
     deltaTime = m_inputData.GetScalarOpt("deltaTime");               // seconds
@@ -28,18 +42,10 @@ world::world(string name, int n, Eigen::MatrixXd poses, Eigen::VectorXd orientat
     k_scaler = m_inputData.GetScalarOpt("kScaler");                  // constant scaler for contact stiffness
     mu = m_inputData.GetScalarOpt("mu");                             // friction coefficient
     nu = m_inputData.GetScalarOpt("nu");                             // slipping tolerance for friction
-    line_search = m_inputData.GetIntOpt("lineSearch");               // flag for enabling line search
-
     shearM = youngM / (2.0 * (1.0 + Poisson));                             // shear modulus
-
-    alpha = 1.0;                                                           // newton step size
 
     point_vel = Vector3d::Zero();
 
-    deltaLength = (RodLength / (numVertices - 1));
-
-    // std::cout << deltaLength << std::endl;
-    // std::cout << vertices_home << std::endl;
 }
 
 world::~world() {
@@ -48,7 +54,6 @@ world::~world() {
 
 void world::setRodStepper() {
     // Set up geometry
-    rodGeometry();
 
     // Create the rod
     rod = new elasticRod(vertices, vertices_home, density, rodRadius, deltaTime,
@@ -86,20 +91,6 @@ void world::setRodStepper() {
 
     currentTime = 0.0;
     timeStep = 0;
-}
-
-// Setup geometry
-void world::rodGeometry() {
-    // return;
-    vertices_home = MatrixXd(numVertices, 3);
-
-    theta_home = VectorXd::Zero(numVertices - 1);
-
-    for (int i = 0; i < numVertices; i++) {
-        vertices_home(i, 0) = deltaLength*i;
-        vertices_home(i, 1) = 0.0;
-        vertices_home(i, 2) = 0.0;
-    }
 }
 
 void world::rodBoundaryCondition() {
@@ -140,14 +131,14 @@ void world::updateBoundary() {
     rot(2, 1) = 0.0;
     rot(2, 2) = 0.0;
 
-    u += point_vel(2) * rot * q_ / q_.norm() * deltaLength;
+    u += point_vel(2) * rot * q_ / q_.norm() * 0.0046 * 2;
     
     Vector3d q_new = q1 + u * deltaTime;
 
     // maintain distance constraint         
-
+    float dl = (vertices_home.row(0) - vertices_home.row(1)).norm();
     Vector3d q_norm = q_new - (rod->getVertex(0) + u * deltaTime);
-    q_new = q_norm / q_norm.norm() * deltaLength + (rod->getVertex(0) + u * deltaTime);
+    q_new = q_norm / q_norm.norm() * dl + (rod->getVertex(0) + u * deltaTime);
 
     rod->setVertexBoundaryCondition(q_new, 1);
 }
