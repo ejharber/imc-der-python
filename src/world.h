@@ -98,7 +98,7 @@ private:
 
     // declare the forces
     elasticStretchingForce *m_stretchForce;
-    // elasticBendingForce *m_bendingForce;
+    elasticBendingForce *m_bendingForce;
     // elasticTwistingForce *m_twistingForce;
     inertialForce *m_inertialForce;
     externalGravityForce *m_gravityForce;

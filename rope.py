@@ -41,9 +41,8 @@ class Rope:
         self.fig, self.ax = None, None
         self.display_count = 0
 
-        self.radius = 0.004 # should get these from sim
-        self.space_length_1 = 0.011 # should get these from sim
-        self.space_length_2 = 0.009 # should get these from sim
+        self.radius = 0.0046 # should get these from sim
+        self.space_length = 0.0046*2 # should get these from sim
 
         # self.length = (self. N - 1) * self.space_length
         self.length = 0
@@ -52,23 +51,13 @@ class Rope:
             full_state = self.getRandomPose(seed)
             poses = np.array(full_state)
             poses = np.concatenate((full_state, np.zeros(1)))
-            # print(poses.shape)
             poses = np.reshape(poses, (self.N, 4))
-            # print(poses)
-            # orientation = poses[1:, 3]
             poses = poses[:, :3]
         else:
             poses = np.zeros((3, self.N)).T
             for i in range(1, self.N):
-                if i % 2 == 0:
-                    poses[i, 0] = poses[i-1, 0] + self.space_length_1
-                    self.length += self.space_length_1
-                else:
-                    poses[i, 0] = poses[i-1, 0] + self.space_length_2
-                    self.length += self.space_length_2
-
-            # print(poses.shape)
-        # orientation = np.zeros(self.N - 1)
+                poses[i, 0] = poses[i-1, 0] + self.space_length
+                self.length += self.space_length
 
         # print("start sim")
         self._simulation = pywrap.world("option.txt", np.copy(poses), np.copy(poses), self.radius)
@@ -142,7 +131,7 @@ class Rope:
 
             if self.fig is None:
                 sns.set() # Setting seaborn as default style even if use only matplotlib
-                self.fig, self.ax = plt.subplots(figsize=(15, 15))
+                self.fig, self.ax = plt.subplots(figsize=(5, 5))
 
                 self.circles = []
                 self.circles += [patches.Circle((q_x[0], q_y[0]), radius=self.radius, ec = None, fc='red')]
@@ -150,18 +139,22 @@ class Rope:
                 for n in range(1, self.N):
                     self.circles += [patches.Circle((q_x[n], q_y[n]), radius=self.radius, ec = None, fc='blue')]
                     self.ax.add_patch(self.circles[-1])
-                lim = .5
+                lim = .2
                 self.ax.axis('equal')
                 self.ax.set_xlim(-lim, lim)
                 self.ax.set_ylim(-lim, lim)
-
                 plt.show(block=False)
+
+                plt.draw()
+                plt.pause(0.01)
 
             else:
                 
                 for n, circle in enumerate(self.circles):
                     circle.set(center=(q_x[n], q_y[n]))
-                self.fig.canvas.draw()
+                plt.draw()
+                plt.pause(0.01)
+
                 self.display_count = 0
 
     def getRandomState(self, seed = None):
@@ -178,12 +171,8 @@ class Rope:
 
                 theta = np.random.uniform(0, 2*np.pi)
 
-                if len(state) % 2 == 0:
-                    x = x_last + self.space_length_1*np.cos(theta)
-                    y = y_last + self.space_length_1*np.sin(theta)
-                else:
-                    x = x_last + self.space_length_2*np.cos(theta)
-                    y = y_last + self.space_length_2*np.sin(theta)
+                x = x_last + self.space_length*np.cos(theta)
+                y = y_last + self.space_length*np.sin(theta)
 
                 # Step 2: Check Collision for next bead
                 collision = False

@@ -78,7 +78,7 @@ void world::setRodStepper() {
 
     // declare the forces
     m_stretchForce = new elasticStretchingForce(*rod, *stepper);
-    // m_bendingForce = new elasticBendingForce(*rod, *stepper);
+    m_bendingForce = new elasticBendingForce(*rod, *stepper);
     // m_twistingForce = new elasticTwistingForce(*rod, *stepper);
     m_inertialForce = new inertialForce(*rod, *stepper);
     m_gravityForce = new externalGravityForce(*rod, *stepper, gVector);
@@ -131,12 +131,13 @@ void world::updateBoundary() {
     rot(2, 1) = 0.0;
     rot(2, 2) = 0.0;
 
-    u += point_vel(2) * rot * q_ / q_.norm() * 0.0046 * 2;
+    float dl = (vertices_home.row(0) - vertices_home.row(1)).norm();
+
+    u += point_vel(2) * rot * q_ / q_.norm() * 0.004 * 2;
     
     Vector3d q_new = q1 + u * deltaTime;
 
     // maintain distance constraint         
-    float dl = (vertices_home.row(0) - vertices_home.row(1)).norm();
     Vector3d q_norm = q_new - (rod->getVertex(0) + u * deltaTime);
     q_new = q_norm / q_norm.norm() * dl + (rod->getVertex(0) + u * deltaTime);
 
@@ -161,8 +162,6 @@ bool world::updateTimeStep() {
 
     rod->updateTimeStep();
 
-    // printSimData();
-
     return solved;
 }
 
@@ -171,7 +170,7 @@ void world::calculateForce() {
 
     m_inertialForce->computeFi();
     m_stretchForce->computeFs();
-    // m_bendingForce->computeFb();
+    m_bendingForce->computeFb();
     // m_twistingForce->computeFt();
     m_gravityForce->computeFg();
     m_dampingForce->computeFd();
@@ -192,7 +191,6 @@ void world::newtonDamper() {
         alpha *= 0.90;
     if (alpha < 0.1)
         alpha = 0.1;
-    // std::cout << alpha << std::endl;
     alpha = 1.0;
 }
 
@@ -222,8 +220,8 @@ void world::newtonMethod(bool &solved) {
         m_stretchForce->computeFs();
         m_stretchForce->computeJs();
 
-        // m_bendingForce->computeFb();
-        // m_bendingForce->computeJb();
+        m_bendingForce->computeFb();
+        m_bendingForce->computeJb();
 
         // m_twistingForce->computeFt();
         // m_twistingForce->computeJt();
@@ -256,8 +254,6 @@ void world::newtonMethod(bool &solved) {
         if (normf <= forceTol || (iter > 0 && normf <= normf0 * stol)) {
             solved = true;
             iter++;
-        //     if (pulling())
-        //         total_iters++;
         }
 
         if (solved == false) {
@@ -269,8 +265,6 @@ void world::newtonMethod(bool &solved) {
             }
             rod->updateNewtonX(dx, alpha); // new q = old q + Delta q
             iter++;
-        //     if (pulling())
-        //         total_iters++;
         }
 
         // Exit if unable to converge
@@ -314,7 +308,7 @@ void world::lineSearch() {
         // Compute the forces and the jacobians
         m_inertialForce->computeFi();
         m_stretchForce->computeFs();
-        // m_bendingForce->computeFb();
+        m_bendingForce->computeFb();
         // m_twistingForce->computeFt();
         m_gravityForce->computeFg();
         m_dampingForce->computeFd();

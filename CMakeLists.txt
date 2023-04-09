@@ -72,7 +72,7 @@ target_link_libraries(pywrap PUBLIC
         ${SYMENGINE_LIBRARIES}
         ${OPENGL_LIBRARIES}
         ${GLUT_LIBRARIES}
-#         ${MKL_LIBRARIES}
+        ${MKL_LIBRARIES}
         Eigen3::Eigen
         lapack
         gfortran
