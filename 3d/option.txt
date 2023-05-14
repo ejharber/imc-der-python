@@ -1,0 +1,16 @@
+rodRadius          0.0046
+density            100
+youngM             18e2
+Poisson            0.5
+tol                1.0e-3
+stol               1.0e-3
+maxIter            500
+gVector            0.0 0.0 -1.0
+viscosity          0.0001
+deltaTime          0.01
+colLimit           2e-3
+delta              5e-4
+kScaler            5e2
+mu                 0.30
+nu                 1e-4
+lineSearch         1
