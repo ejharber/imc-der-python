@@ -1,5 +1,9 @@
 import numpy as np
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt, patches
+import matplotlib.animation as animation
+from scipy.interpolate import PchipInterpolator, CubicSpline
+
+import seaborn as sns
 
 from numpy_sim import *
 
@@ -12,8 +16,8 @@ class RopePython(object):
         def __init__(self, x, u):
             
             # states for loading a simulation 
-            self.x = self.x
-            self.u = self.u
+            self.x = x
+            self.u = u
             self.q = np.concatenate((self.x, self.u))
 
             # states for analysis
@@ -21,21 +25,26 @@ class RopePython(object):
             self.x_2 = self.x[1::2]
             self.x_1_ee = self.x_1[-1]
             self.x_2_ee = self.x_2[-1]
+            # print(self.x_1_ee.shape)
             self.x_ee = np.array([self.x_1_ee, self.x_2_ee])
+            if len(self.x_ee.shape) > 1:
+                self.x_ee = self.x_ee[:, 0]
+            # print(self.x_ee.shape)
 
-    def __init__(self, render_mode):
+    def __init__(self, render_mode = None):
 
         ## Model Parameters (Calculated)
         self.N = 10
         self.dt = 0.01
         self.dL = 0.0046*2.1 # should get these from sim
         self.R = 0.0046 # should get these from sim
+        self.radius = self.R
         self.length = (self. N - 1) * self.dL
-        self.g = -9.8
-        self.EI
-        self.EA
-        self.damp
-        self.m
+        self.g = 9.8
+        self.EI = 1e-2
+        self.EA = 1e7
+        self.damp = 0.15
+        self.m = 0.2
 
         self._simulation = None
 
@@ -56,20 +65,55 @@ class RopePython(object):
         
         return self._simulation
 
-    def step(self, next_action):
+    def step(self, weighpoints):
 
+        state = self.getState()
 
+        weighpoints[2] = (weighpoints[2] + np.pi) % (2*np.pi) - np.pi
+
+        traj_velocity = []
+
+        # time = np.linalg.norm(weighpoints[:2])*2.5
+        # time = max(round(time, 2), 0.1)
+        time = .5
+
+        for dim in range(weighpoints.shape[0]):
+            x_traj = [0, time]
+            y_traj = [0, weighpoints[dim]]
+            f_prime = CubicSpline(x_traj, y_traj, bc_type='clamped').derivative(1)
+            traj_velocity.append(f_prime(np.linspace(0, time, round(time/0.01) + 1)))
+
+        traj_velocity = np.array(traj_velocity)
+
+        # for i in range(traj_velocity.shape[1]):
+        #     traj_u = np.reshape(traj_velocity[:, i], (-1, 1))
+        #     # traj_u = traj_velocity
+        #     # print(traj_u.shape)
+        #     x, u = run_simulation(state.x, state.u, self.N, self.dt, self.length, self.dL, self.R, self.g, self.EI, self.EA, self.damp, self.m, traj_u = traj_u)
+
+        #     state = self.State(x, u)
+        #     self.setState(state)
+
+        traj_u = traj_velocity
+        x, u = run_simulation(state.x, state.u, self.N, self.dt, self.length, self.dL, self.R, self.g, self.EI, self.EA, self.damp, self.m, traj_u = traj_u)
+
+        state = self.State(x, u)
+        self.setState(state)
 
         return self._simulation
 
-    def reset(self, seed: Optional[int] = None):
+    def reset(self, seed = None):
 
         ## Geometry
         x = np.zeros((self.N, 2))
         for c in range(self.N):
             x[c, 0] = c * self.dL
+        x = x.flatten()
 
-        self.setState(x, u)
+        u = np.zeros(self.N*2)
+
+        state = self.State(x, u)
+        self.setState(state)
 
         return self.getState()
 
@@ -93,7 +137,7 @@ class RopePython(object):
             self.ax.add_patch(self.circles[-1])
             # self.goal_circle = patches.Circle((self.goal[0], self.goal[1]), radius=self.radius, ec = 'black', fc=None)
             # self.ax.add_patch(self.goal_circle)
-            self.goal_circle = self.ax.plot(self.goal[0], self.goal[1], 'g', marker = '+', markersize=10, markeredgewidth=2)[0]
+            # self.goal_circle = self.ax.plot(self.goal[0], self.goal[1], 'g', marker = '+', markersize=10, markeredgewidth=2)[0]
 
             lim = .2
             self.ax.axis('equal')
@@ -108,8 +152,8 @@ class RopePython(object):
             
             for n, circle in enumerate(self.circles):
                 circle.set(center=(state.x_1[n], state.x_2[n]))
-            self.goal_circle.set_xdata(self.goal[0])     
-            self.goal_circle.set_ydata(self.goal[1])     
+            # self.goal_circle.set_xdata(self.goal[0])     
+            # self.goal_circle.set_ydata(self.goal[1])     
             plt.draw()
             plt.pause(0.001) 
             self.fig.canvas.draw()
@@ -119,7 +163,7 @@ class RopePython(object):
         image = np.array(self.fig.canvas.renderer.buffer_rgba())
         if image.shape[0] == 750:
             self.save_render.append(image)
-        print(image.shape)
+        # print(image.shape)
         # now you have a numpy array representing the rendered image
         # print(image.shape)  # (height, width, channels)
 

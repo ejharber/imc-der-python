@@ -1,6 +1,6 @@
 import numpy as np 
 
-def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u = np.zeros((2,1))):
+def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u = np.zeros((3, 1))):
 
     ## Mass matrix
     masses = np.ones((2 * N, 1))
@@ -23,39 +23,47 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
     free_top = 2*N
 
     # Tolerance
-    tol = EI / RodLength ** 2 * 1e-3  # division of rod length puts units in N
+    tol = 1e3 # division of rod length puts units in N
 
     q = 0
 
-    for c in range(traj_u.shape[0]):  # current time step is t_k+1 bc we start at a time of dt
+    for c in range(traj_u.shape[1]):  # current time step is t_k+1 bc we start at a time of dt
 
         q = np.copy(q0)  # initial guess for newton raphson is the last dof vector
+
+        q_ = q[:2] - q[2:4]
+        rot = np.array([[0, -1], [1, 0]])
+        u_ = np.array([traj_u[:2, c]]).T + traj_u[2, c] * rot @ q_ / np.linalg.norm(q_) * deltaL
+
+        q[:2, 0] += traj_u[:2, c]*dt
+        q[2:4, 0] += u_[:,0]*dt
 
         q_free = q[free_bot:free_top]
 
         # Newton Raphson
         err = 10 * tol
         while err > tol:
+
             # Inertia
             # use @ for matrix multiplication else it's element wise
             f = M / dt @ ((q - q0) / dt - u0)  # inside() is new - old velocity, @ means matrix multiplication
             J = M / dt ** 2.0
 
             # Elastic forces
-
             k = 0  # do the first node or edge outside the loop
             # Linear spring between nodes k and k + 1
             indeces = [2*k, 2*k+1, 2*k+2, 2*k+3]
-            xk = q[indeces[0]] # xk
-            yk = q[indeces[1]] # yk
-            xkp1 = q[indeces[2]] # xk plus 1
-            ykp1 = q[indeces[3]] # yk plus 1
-            dFs = funcs.grad_es(xk, yk, xkp1, ykp1, deltaL, EA)
-            dJs = funcs.hess_es(xk, yk, xkp1, ykp1, deltaL, EA)
+            xk = q[indeces[0]].item()  # xk
+            yk = q[indeces[1]].item()  # yk
+            xkp1 = q[indeces[2]].item()  # xk plus 1
+            ykp1 = q[indeces[3]].item()
+            dFs = grad_es(xk, yk, xkp1, ykp1, deltaL, EA)
+            dJs = hess_es(xk, yk, xkp1, ykp1, deltaL, EA)
             indeces = np.array(indeces)
             f[indeces] = f[indeces] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
             J[indeces[0]:indeces[3] + 1, indeces[0]:indeces[3] + 1] = J[indeces[0]:indeces[3] + 1,
                                                                       indeces[0]:indeces[3] + 1] + dJs
+
             for k in range(1, N-1):
                 indeces = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
                 xkm1 = q[indeces[0]].item()  # xk minus 1
@@ -68,11 +76,18 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
 
                 indeces = np.array(indeces)
                 # linear spring between nodes k and k + 1
-                dFs = funcs.grad_es(xk, yk, xkp1, ykp1, deltaL, EA)
-                dJs = funcs.hess_es(xk, yk, xkp1, ykp1, deltaL, EA)
+                dFs = grad_es(xk, yk, xkp1, ykp1, deltaL, EA)
+                dJs = hess_es(xk, yk, xkp1, ykp1, deltaL, EA)
                 f[indeces[2:]] = f[indeces[2:]] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
                 J[indeces[2]:indeces[5] + 1, indeces[2]:indeces[5] + 1] = J[indeces[2]:indeces[5] + 1,
                                                                           indeces[2]:indeces[5] + 1] + dJs
+
+                # Bending spring between nodes k-1, k, and k+1 located at node 2
+                dFb = grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, deltaL, EI)
+                dJb = hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, deltaL, EI)
+                f[indeces] = f[indeces] + dFb  # and here !!!!!!!!!!!!!!!!!!!!!
+                J[indeces[0]:indeces[5] + 1, indeces[0]:indeces[5] + 1] = J[indeces[0]:indeces[5] + 1,
+                                                                          indeces[0]:indeces[5] + 1] + dJb
 
             # Weight
             f = f - W
@@ -92,8 +107,7 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
         u0 = (q - q0) / dt  # New velocity becomes old velocity for next iter
         q0 = q  # Old position
 
-    return all_q, all_u, timeArray
-
+    return q0, u0
 
 def cross_mat(a):
     """
