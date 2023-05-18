@@ -3,6 +3,7 @@ import numpy as np
 
 rope = RopePython(True)
 
-for _  in range(10):
-	rope.reset()
-	rope.step(np.array([0.1, 0.1, 1]))
+rope.reset()
+force, q, u, _ = rope.step(np.array([.2, 0.2, np.pi/2]))
+
+print(q.shape)

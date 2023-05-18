@@ -6,6 +6,7 @@ from scipy.interpolate import PchipInterpolator, CubicSpline
 import seaborn as sns
 
 from numpy_sim import *
+# from cupy_sim import *
 
 class RopePython(object):
 
@@ -35,16 +36,17 @@ class RopePython(object):
 
         ## Model Parameters (Calculated)
         self.N = 10
-        self.dt = 0.01
-        self.dL = 0.0046*2.1 # should get these from sim
-        self.R = 0.0046 # should get these from sim
+        self.dt = 0.005
+        self.R = 0.0046
         self.radius = self.R
-        self.length = (self. N - 1) * self.dL
         self.g = 9.8
-        self.EI = 1e-2
-        self.EA = 1e7
+
+        self.dL = 0.0046*2.1 # should replace this with an array         
+        self.length = (self. N - 1) * self.dL
+        self.EI = 1e-2 # should replace this with an array LATER
+        self.EA = 1e7 # should replace this with an array LATER
         self.damp = 0.15
-        self.m = 0.2
+        self.m = 0.2 # should replace this with an array LATER
 
         self._simulation = None
 
@@ -73,8 +75,6 @@ class RopePython(object):
 
         traj_velocity = []
 
-        # time = np.linalg.norm(weighpoints[:2])*2.5
-        # time = max(round(time, 2), 0.1)
         time = .5
 
         for dim in range(weighpoints.shape[0]):
@@ -85,29 +85,45 @@ class RopePython(object):
 
         traj_velocity = np.array(traj_velocity)
 
-        # for i in range(traj_velocity.shape[1]):
-        #     traj_u = np.reshape(traj_velocity[:, i], (-1, 1))
-        #     # traj_u = traj_velocity
-        #     # print(traj_u.shape)
-        #     x, u = run_simulation(state.x, state.u, self.N, self.dt, self.length, self.dL, self.R, self.g, self.EI, self.EA, self.damp, self.m, traj_u = traj_u)
-
-        #     state = self.State(x, u)
-        #     self.setState(state)
-
         traj_u = traj_velocity
-        x, u = run_simulation(state.x, state.u, self.N, self.dt, self.length, self.dL, self.R, self.g, self.EI, self.EA, self.damp, self.m, traj_u = traj_u)
+        f_save, q_save, u_save, success = run_simulation(state.x, state.u, self.N, self.dt, self.length, self.dL, self.R, self.g, self.EI, self.EA, self.damp, self.m, traj_u = traj_u)
 
-        state = self.State(x, u)
-        self.setState(state)
+        if not success:
+            print("FAILED")
+            return success 
 
-        return self._simulation
+        force_y = np.sum(f_save[4::2, :], axis = 0)
+        force_x = np.sum(f_save[5::2, :], axis = 0)
+
+        force = force_x * force_x + force_y * force_y
+        force = np.power(force, 0.5)
+
+        if self.render is not None:
+
+            for i in range(q_save.shape[1]):
+                x = q_save[:, i]
+                u = u_save[:, i]
+                state = self.State(x, u)
+                self.setState(state)
+
+        else:
+            x = q_save[:, -1]
+            u = u_save[:, -1]
+
+            state = self.State(x, u)
+            self.setState(state)
+
+        return force, q_save, u_save, success
+        return success
 
     def reset(self, seed = None):
 
-        ## Geometry
+        np.random.seed(seed)
+        self.dL = 0.0046*np.random.uniform(2.1, 4) # should get these from sim
+
         x = np.zeros((self.N, 2))
         for c in range(self.N):
-            x[c, 0] = c * self.dL
+            x[c, 1] = - c * self.dL
         x = x.flatten()
 
         u = np.zeros(self.N*2)
@@ -123,49 +139,55 @@ class RopePython(object):
 
         state = self.getState()
 
-        if self.fig is None:
-            sns.set() # Setting seaborn as default style even if use only matplotlib
-            self.fig, self.ax = plt.subplots(figsize=(5, 5))
+        if self.render_mode == "Human":
+            plt.figure("Human")
+            if self.fig is None:
+                sns.set() # Setting seaborn as default style even if use only matplotlib
+                self.fig, self.ax = plt.subplots(figsize=(5, 5))
 
-            self.circles = []
-            self.circles += [patches.Circle((state.x_1[0], state.x_2[0]), radius=self.radius, ec = None, fc='red')]
-            self.ax.add_patch(self.circles[-1])
-            for n in range(1, self.N-1):
-                self.circles += [patches.Circle((state.x_1[n], state.x_2[n]), radius=self.radius, ec = None, fc='blue')]
+                self.circles = []
+                self.circles += [patches.Circle((state.x_1[0], state.x_2[0]), radius=self.radius, ec = None, fc='red')]
                 self.ax.add_patch(self.circles[-1])
-            self.circles += [patches.Circle((state.x_1[n], state.x_2[n]), radius=self.radius, ec = None, fc='green')]
-            self.ax.add_patch(self.circles[-1])
-            # self.goal_circle = patches.Circle((self.goal[0], self.goal[1]), radius=self.radius, ec = 'black', fc=None)
-            # self.ax.add_patch(self.goal_circle)
-            # self.goal_circle = self.ax.plot(self.goal[0], self.goal[1], 'g', marker = '+', markersize=10, markeredgewidth=2)[0]
+                for n in range(1, self.N-1):
+                    self.circles += [patches.Circle((state.x_1[n], state.x_2[n]), radius=self.radius, ec = None, fc='blue')]
+                    self.ax.add_patch(self.circles[-1])
+                self.circles += [patches.Circle((state.x_1[n], state.x_2[n]), radius=self.radius, ec = None, fc='green')]
+                self.ax.add_patch(self.circles[-1])
+                # self.goal_circle = patches.Circle((self.goal[0], self.goal[1]), radius=self.radius, ec = 'black', fc=None)
+                # self.ax.add_patch(self.goal_circle)
+                # self.goal_circle = self.ax.plot(self.goal[0], self.goal[1], 'g', marker = '+', markersize=10, markeredgewidth=2)[0]
 
-            lim = .2
-            self.ax.axis('equal')
-            self.ax.set_xlim(-lim, lim)
-            self.ax.set_ylim(-lim, lim)
-            plt.show(block=False)
+                lim = .4
+                self.ax.axis('equal')
+                self.ax.set_xlim(-lim, lim)
+                self.ax.set_ylim(-lim, lim)
+                plt.show(block=False)
 
-            plt.draw()
-            plt.pause(0.001)
+                plt.draw()
+                plt.pause(0.001)
 
-        else:
-            
-            for n, circle in enumerate(self.circles):
-                circle.set(center=(state.x_1[n], state.x_2[n]))
-            # self.goal_circle.set_xdata(self.goal[0])     
-            # self.goal_circle.set_ydata(self.goal[1])     
-            plt.draw()
-            plt.pause(0.001) 
-            self.fig.canvas.draw()
+            else:
+                
+                for n, circle in enumerate(self.circles):
+                    circle.set(center=(state.x_1[n], state.x_2[n]))
+                # self.goal_circle.set_xdata(self.goal[0])     
+                # self.goal_circle.set_ydata(self.goal[1])     
+                plt.draw()
+                plt.pause(0.001) 
+                self.fig.canvas.draw()
 
 
-        self.fig.canvas.draw()
-        image = np.array(self.fig.canvas.renderer.buffer_rgba())
-        if image.shape[0] == 750:
-            self.save_render.append(image)
-        # print(image.shape)
-        # now you have a numpy array representing the rendered image
-        # print(image.shape)  # (height, width, channels)
+        # if render == "Occupancy":
+
+
+        # Later
+        # self.fig.canvas.draw()
+        # image = np.array(self.fig.canvas.renderer.buffer_rgba())
+        # if image.shape[0] == 750:
+        #     self.save_render.append(image)
+        # # print(image.shape)
+        # # now you have a numpy array representing the rendered image
+        # # print(image.shape)  # (height, width, channels)
 
     def close(self):
         if self.render:
