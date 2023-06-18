@@ -20,7 +20,7 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
 
 
 @jit(nopython=True, cache=True, boundscheck=False)
-def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u):
+def _run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u):
 
     ## Mass matrix
     # print(N)
