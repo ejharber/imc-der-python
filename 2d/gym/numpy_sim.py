@@ -1,8 +1,29 @@
-import numpy as np 
+# import cupy as np 
+import numpy as np
+from numba import jit
 
 def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u = np.zeros((3, 1))):
+    # Initial DOF vector
+    # Initial Position
+    # print(x0)
+    # q0 = np.atleast_2d(q0)
+    q0 = np.array([x0]).T
+
+    # Initial velocity
+    # u0 = np.atleast_2d(u0)
+    u0 = np.array([u0]).T
+    try:
+        return _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u)
+
+    except:
+        return [], [], [], False
+
+
+@jit(nopython=True, cache=True, boundscheck=False)
+def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u):
 
     ## Mass matrix
+    # print(N)
     masses = np.ones((2 * N, 1))
     masses = masses * m
     M = np.diag(masses.flatten())
@@ -11,21 +32,20 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
     W = -masses * g
     W[::2] = 0
 
-    # Initial DOF vector
-    # Initial Position
-    q0 = np.reshape(x0, (-1, 1))
-
-    # Initial velocity
-    u0 = np.reshape(u0, (-1, 1))
 
     # indeces for non - constrained motion
     free_bot = 4
     free_top = 2*N
 
     # Tolerance
-    tol = 1e3 # division of rod length puts units in N
+    tol = 1e-1 # division of rod length puts units in N
 
     q = 0
+    f = 0
+
+    f_save = np.zeros((q0.shape[0], traj_u.shape[1]))
+    q_save = np.zeros((q0.shape[0], traj_u.shape[1]))
+    u_save = np.zeros((u0.shape[0], traj_u.shape[1]))
 
     for c in range(traj_u.shape[1]):  # current time step is t_k+1 bc we start at a time of dt
 
@@ -33,21 +53,45 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
 
         q_ = q[:2] - q[2:4]
         rot = np.array([[0, -1], [1, 0]])
-        u_ = np.array([traj_u[:2, c]]).T + traj_u[2, c] * rot @ q_ / np.linalg.norm(q_) * deltaL
+        u_ = np.atleast_2d(traj_u[:2, c]).T + traj_u[2, c] * rot @ q_ / np.linalg.norm(q_) * deltaL
 
-        q[:2, 0] += traj_u[:2, c]*dt
-        q[2:4, 0] += u_[:,0]*dt
+        q[:2] = q[:2] + np.atleast_2d(traj_u[:2, c]).T*dt
+
+        q[2:4] += u_*dt
+
+        # constraining the distance between the two constraints 
+        # only required do to floating point error
+        q_ = q[:2] - q[2:4]
+        q_ = q_ / np.linalg.norm(q_) * deltaL
+        q[2:4] = q[:2] - q_
 
         q_free = q[free_bot:free_top]
 
         # Newton Raphson
         err = 10 * tol
+
+        iteration = 0
+        max_iteration = 100
+
         while err > tol:
+
+            iteration += 1
+            if iteration >= max_iteration:
+                return f_save, q_save, u_save, False
 
             # Inertia
             # use @ for matrix multiplication else it's element wise
             f = M / dt @ ((q - q0) / dt - u0)  # inside() is new - old velocity, @ means matrix multiplication
             J = M / dt ** 2.0
+
+            # Weight
+            f = f - W
+
+            # Viscous force
+            f = f + damp * (q - q0) / dt;
+            J = J + damp / dt;
+
+            f_save[:, c] = np.copy(f[:, 0])
 
             # Elastic forces
             k = 0  # do the first node or edge outside the loop
@@ -89,12 +133,8 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
                 J[indeces[0]:indeces[5] + 1, indeces[0]:indeces[5] + 1] = J[indeces[0]:indeces[5] + 1,
                                                                           indeces[0]:indeces[5] + 1] + dJb
 
-            # Weight
-            f = f - W
-
-            # Viscous force
-            f = f + damp * (q - q0) / dt;
-            J = J + damp / dt;
+            # print(f.T)
+            # print()
 
             # Update DOF for only the free ones
             f_free = np.copy(f[free_bot:free_top])
@@ -107,8 +147,14 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
         u0 = (q - q0) / dt  # New velocity becomes old velocity for next iter
         q0 = q  # Old position
 
-    return q0, u0
+        # f_save[c] = f[2]
+        # print(q_save[:, c].shape, q.shape)
+        q_save[:, c] = q[:,0]
+        u_save[:, c] = u0[:,0]
 
+    return f_save, q_save, u_save, True
+
+@jit(nopython=True, cache=True, boundscheck=False)
 def cross_mat(a):
     """
     cross-matrix for derivative calculation
@@ -120,6 +166,8 @@ def cross_mat(a):
          [a[1], a[0], 0]]
     return np.array(c)
 
+
+@jit(nopython=True, cache=True, boundscheck=False)
 def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     """
     This function returns the derivative of bending energy E_k^b with respect
@@ -185,6 +233,8 @@ def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
 
     return dF
 
+
+@jit(nopython=True, cache=True, boundscheck=False)
 def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     """
     This function returns the derivative of bending energy E_k^b with respect
@@ -299,6 +349,8 @@ def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
 
     return dJ
 
+
+@jit(nopython=True, cache=True, boundscheck=False)
 def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
     """
     This function returns the derivative of stretching energy E_k^s with
@@ -327,6 +379,8 @@ def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
 
     return F
 
+
+@jit(nopython=True, cache=True, boundscheck=False)
 def hess_es(xk, yk, xkp1, ykp1, l_k, EA):
     """
     This function returns the 4x4 hessian of the stretching energy E_k^s with

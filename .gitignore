@@ -12,3 +12,8 @@ energyplotter.py
 knot_tying_shots/
 data_plotter.py
 build
+
+*.npz
+*.npy
+*.zip
+*.pkl
