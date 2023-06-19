@@ -10,9 +10,8 @@ class RopeEnv(gym.Env,):
 
     def __init__(self, random_sim_params, render_mode = None):
         
-        self.rope = RopePython(render_mode)
-        self.random_sim_params = random_sim_params
-        self._simulation_start_state = self.rope.reset()
+        self.rope = RopePython(random_sim_params, render_mode)
+        self._simulation_start_state = None
 
         self.original_cost = 1
 
@@ -36,21 +35,18 @@ class RopeEnv(gym.Env,):
         self.action_space = spaces.Box(action_low, action_high, dtype=np.float64)
         self.action = np.zeros(3)
 
-        # observation_low = np.ones(7)
-        # observation_low[:2] *= self.low - self.rope.length        
-        # observation_low[2:4] *= self.low * self.max_iter - self.rope.length
-        # observation_low[4:] = action_low
+        pos_traj_low = - np.ones((20, 100)) * np.inf
+        pos_traj_high = np.ones((20, 100)) * np.inf        
+        pos_traj_os = spaces.Box(pos_traj_low, pos_traj_high, dtype=np.float64)
 
-        # observation_high = np.ones(7)
-        # observation_high[:2] *= self.high + self.rope.length
-        # observation_high[2:4] *= self.high * self.max_iter + self.rope.length
-        # observation_high[4:] = action_high
+        force_traj_low = - np.ones((2, 100)) * np.inf
+        force_traj_high = np.ones((2, 100)) * np.inf        
+        force_traj_os = spaces.Box(force_traj_low, force_traj_high, dtype=np.float64)
 
-        observation_low = - np.ones(7) * np.inf
-        observation_high = np.ones(7) * np.inf
-
-        self.observation_space = spaces.Box(observation_low, observation_high, dtype=np.float64)
-        self.observation_space = Dict({'pos_traj': observation_positions, 'force_traj': observation_positions, 'action': , 'goal', })
+        self.observation_space = spaces.Dict({'pos_traj': pos_traj_os, 
+                                       'force_traj': force_traj_os,
+                                       'action': self.action_space, 
+                                       'goal': self.action_space})
 
         self.reset()
 
@@ -70,12 +66,19 @@ class RopeEnv(gym.Env,):
 
         self.action = action
 
-        success, training_data = self.rope.step(self.action) #this might have to be updated to use with RL
+        success, self.traj_pos, self.traj_force = self.rope.step(self.action) #this might have to be updated to use with RL
 
         if not success:
-            # training_state = np.zeros(7)
-            # return np.concatenate((self.goal, training_state)), -10000, True, {}
-            return np.zeros(7), -1000, True, {}
+            observation_state = {'pos_traj': np.zeros((20,100)), 
+                                       'force_traj': np.zeros((2,100)),
+                                       'action': self.action, 
+                                       'goal': self.goal}
+            return observation_state, -1000, True, {}
+
+        observation_state = {'pos_traj': self.traj_pos, 
+                           'force_traj': self.traj_force,
+                           'action': self.action, 
+                           'goal': self.goal}
 
         reward = (self.original_cost - self.costFun()) / self.original_cost * 100
 
@@ -86,12 +89,12 @@ class RopeEnv(gym.Env,):
         if self.current_iter >= self.max_iter:
             terminate = True
 
-        return training_data, reward, terminate, {}
+        return observation_state, reward, terminate, {}
         # return np.concatenate((self.goal, training_state)), reward, terminate, {}
 
     def reset(self, seed = None):
 
-        self._simulation_start_state = self.rope.reset(self.random_sim_params, seed)
+        self._simulation_start_state = self.rope.reset(seed)
 
         self.goal = np.random.random(2) * (self.high - self.low) - self.high
 

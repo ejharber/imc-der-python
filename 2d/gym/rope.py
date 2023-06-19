@@ -47,8 +47,9 @@ class RopePython(object):
             if len(self.x_ee.shape) > 1:
                 self.x_ee = self.x_ee[:, 0]
 
-    def __init__(self, render_mode = None):
+    def __init__(self, random_sim_params, render_mode = None):
 
+        self.random_sim_params = random_sim_params
         ## Model Parameters (Calculated)
         self.N = 10
         self.dt = 0.005
@@ -123,11 +124,11 @@ class RopePython(object):
 
         return success, self.traj_pos, self.traj_force
 
-    def reset(self, random_sim_params, seed = None):
+    def reset(self, seed = None):
 
         np.random.seed(seed)
 
-        if random_sim_params:
+        if self.random_sim_params:
             self.dL = 0.0046*2.1*np.random.uniform(.95, 1.05) # should get these from sim
             self.length = (self. N - 1) * self.dL
             self.EI = 1e-2*np.random.uniform(.95, 1.05) # should replace this with an array LATER

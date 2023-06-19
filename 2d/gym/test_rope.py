@@ -7,7 +7,7 @@ rope = RopePython("Both")
 rope.reset(random_sim_params = False)
 
 for _ in range(100):
-    success, traj_pos, traj_force = rope.step(np.array([0, 0, 0]))
+    success, traj_pos, traj_force = rope.step(np.array([0.2, 0.2, np.pi/2]))
     time.sleep(1)
 print(traj_pos.shape)
 print(traj_force.shape)
