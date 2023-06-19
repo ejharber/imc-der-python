@@ -51,7 +51,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, tra
 
         q = np.copy(q0)  # initial guess for newton raphson is the last dof vector
 
-        q_ = q[:2] - q[2:4]
+        q_ = q[2:4] - q[:2]
         rot = np.array([[0, -1], [1, 0]])
         u_ = np.atleast_2d(traj_u[:2, c]).T + traj_u[2, c] * rot @ q_ / np.linalg.norm(q_) * deltaL
 

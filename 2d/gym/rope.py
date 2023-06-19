@@ -33,17 +33,19 @@ class RopePython(object):
             # robot states
             self.x_1_robot = self.x[0]
             self.x_2_robot = self.x[1]
-            q_ = self.q[:2] - self.q[2:4]
+
+            q_ = self.q[2:4] - self.q[:2]
             self.x_theta_robot = np.arctan2(q_[1], q_[0]) 
+            self.x_theta_robot += np.pi/2
             if self.x_theta_robot >= 2*np.pi:
                 self.x_theta_robot -= 2*np.pi
             if self.x_theta_robot < 0:
                 self.x_theta_robot += 2*np.pi
+
             self.x_robot = [self.x_1_robot, self.x_2_robot, self.x_theta_robot]
 
             if len(self.x_ee.shape) > 1:
                 self.x_ee = self.x_ee[:, 0]
-            # print(self.x_ee.shape)
 
     def __init__(self, render_mode = None):
 
@@ -91,8 +93,6 @@ class RopePython(object):
         for dim in range(weighpoints.shape[0]):
             x_1_traj = [0, time]
             x_2_traj = [state.x_robot[dim], weighpoints[dim]]
-
-            print(dim, x_2_traj)
             f_prime = CubicSpline(x_1_traj, x_2_traj, bc_type='clamped').derivative(1)
             traj_u.append(f_prime(np.linspace(0, time, round(time/self.dt) + 1)))
 
@@ -120,8 +120,6 @@ class RopePython(object):
 
         state = self.State(x, u)
         self.setState(state)
-
-        print("done", state.x_theta_robot)
 
         return success, self.traj_pos, self.traj_force
 
