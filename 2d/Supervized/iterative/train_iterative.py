@@ -8,45 +8,66 @@ from torch.utils.data import Dataset, DataLoader
 from torch import nn
 from torch import optim
 
+import os 
+
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 # Assuming that we are on a CUDA machine, this should print a CUDA device:
 
 print(device)
 
-data = np.load("rope_motion_noise_0.npz")
-X = data["actions_1"]
-y = data["x_ee_1"]
+# file_names = ["rope_motion_noise_0.npz", "rope_motion_noise_50000.npz", "rope_motion_noise_100000.npz", "rope_motion_noise_200000.npz", 
+#              "rope_motion_noise_300000.npz", "rope_motion_noise_350000.npz", "rope_motion_noise_500000.npz"]
+# file_names = ["rope_motion_noise_350000.npz", "rope_motion_noise_400000.npz", "rope_motion_noise_0.npz", "rope_motion_noise_50000.npz"]
 
-data = np.load("rope_motion_noise_350000.npz")
-X = np.append(X, data["actions_1"], axis = 0)
-y = np.append(y, data["x_ee_1"], axis = 0)
+X = np.array([])
+y = np.array([])
 
-data = np.load("rope_motion_noise_400000.npz")
-X = np.append(X, data["actions_1"], axis = 0)
-y = np.append(y, data["x_ee_1"], axis = 0)
+print(os.listdir("data"))
+for file in os.listdir("data"):
+    print(file)
+    try:
+        data = np.load("data/" + file)
+    except:
+        continue 
 
-data = np.load("rope_motion_noise_50000.npz")
-X = np.append(X, data["actions_1"], axis = 0)
-y = np.append(y, data["x_ee_1"], axis = 0)
+    X_1 = data["actions_0"]
+    X_1 = np.append(X_1, data["traj_pos_0"][:,:,-1], axis=1)
+    X_1 = np.append(X_1, data["actions_1"], axis=1)
+    y_1 = data["traj_pos_1"][:,-2:,-1]
 
-# data = np.load("rope_motion_noise_250000.npz")
-# X = np.append(X, data["actions_1"], axis = 0)
-# y = np.append(y, data["x_ee_1"], axis = 0)
+    X_2 = data["actions_1"]
+    X_2 = np.append(X_2, data["traj_pos_1"][:,:,-1], axis=1)
+    X_2 = np.append(X_2, data["actions_2"], axis=1)
+    y_2 = data["traj_pos_2"][:,-2:,-1]
 
-# data = np.load("rope_motion_noise_300000.npz")
-# X = np.append(X, data["actions_1"], axis = 0)
-# y = np.append(y, data["x_ee_1"], axis = 0)
+    X_3 = data["actions_2"]
+    X_3 = np.append(X_3, data["traj_pos_2"][:,:,-1], axis=1)
+    X_3 = np.append(X_3, data["actions_3"], axis=1)
+    y_3 = data["traj_pos_3"][:,-2:,-1]
 
-# data = np.load("rope_motion_noise_350000.npz")
-# X = np.append(X, data["actions_1"], axis = 0)
-# y = np.append(y, data["x_ee_1"], axis = 0)
+    if X.shape[0] == 0:
+        X = X_1
+    else:
+        X = np.append(X, X_1, axis=0)
 
+    X = np.append(X, X_2, axis=0)
+    X = np.append(X, X_3, axis=0)
+
+    if y.shape[0] == 0:
+        y = y_1
+    else:
+        y = np.append(y, y_1, axis=0)
+    y = np.append(y, y_2, axis=0)
+    y = np.append(y, y_3, axis=0)
+
+    print(X.shape, y.shape)
+
+    if X.shape[0] > 1_000_000:
+        break
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.33, random_state=26)
 
-# plt.plot(X_train[:1000,0], X_train[:1000,1])
-# plt.show()
 # Convert data to torch tensors
 class Data(Dataset):
     def __init__(self, X, y):
@@ -62,7 +83,7 @@ class Data(Dataset):
     def __len__(self): 
         return self.len
     
-batch_size = 64*64*64*32
+batch_size = 64*64*32*4
 
 # Instantiate training and test data
 train_data = Data(X_train, y_train)
@@ -76,10 +97,10 @@ for batch, (X, y) in enumerate(train_dataloader):
     print(f"Batch: {batch+1}")
     print(f"X shape: {X.shape}")
     print(f"y shape: {y.shape}")
-    # break
+    break
 
-input_dim = 3
-hidden_dim = 32
+input_dim = 26
+hidden_dim = 64
 output_dim = 2
 
 class NeuralNetwork(nn.Module):
@@ -128,7 +149,7 @@ for epoch in range(num_epochs):
         loss_values_test.append(loss.item())
         print(epoch, loss)
 
-torch.save(model.state_dict(), "oneshot")
+torch.save(model.state_dict(), "iterative_noise")
 
 print("Training Complete")
 

@@ -7,11 +7,23 @@ import imageio
 from rope import RopePython
 
 import sys
+sys.path.append("../Supervized/zero_shot")
+from model import NeuralNetwork
+import torch 
 
+# should change this to inhearet from rope gym
 class RopeEnv(gym.Env,):
 
     def __init__(self, random_sim_params, render_mode = None):
         
+        # I should replace this with a yaml file
+        input_dim = 3
+        hidden_dim = 128
+        output_dim = 2
+
+        self.model = NeuralNetwork(input_dim, hidden_dim, output_dim)
+        self.model.load_state_dict(torch.load("../Supervized/zero_shot/model_params/128_128", map_location=torch.device('cpu')))
+
         self.rope = RopePython(random_sim_params, render_mode)
         self._simulation_start_state = None
 
@@ -26,21 +38,21 @@ class RopeEnv(gym.Env,):
         self.max_iter = 3
         self.current_iter = 0
 
-        self.action_low = np.ones(3)
-        self.action_low[:2] *= self.low
-        self.action_low[2] *= -np.pi
+        action_low = np.ones(3)
+        action_low[:2] *= self.low
+        action_low[2] *= -np.pi
 
-        self.action_high = np.ones(3)
-        self.action_high[:2] *= self.high
-        self.action_high[2] *= np.pi
+        action_high = np.ones(3)
+        action_high[:2] *= self.high
+        action_high[2] *= np.pi
 
-        self.action_space = spaces.Box(self.action_low, self.action_high, dtype=np.float64)
+        self.action_space = spaces.Box(action_low, action_high, dtype=np.float64)
         self.action = np.zeros(3)
 
-        self.goal_space = spaces.Box(self.action_low[:2], self.action_high[:2], dtype=np.float64)
+        self.goal_space = spaces.Box(action_low[:2], action_high[:2], dtype=np.float64)
 
-        pos_traj_low = - np.ones((40, 101)) * np.inf
-        pos_traj_high = np.ones((40, 101)) * np.inf        
+        pos_traj_low = - np.ones((20, 101)) * np.inf
+        pos_traj_high = np.ones((20, 101)) * np.inf        
         pos_traj_os = spaces.Box(pos_traj_low, pos_traj_high, dtype=np.float64)
 
         force_traj_low = - np.ones((2, 101)) * np.inf
@@ -68,12 +80,13 @@ class RopeEnv(gym.Env,):
 
         self.rope.setState(self._simulation_start_state)
 
-        self.action = action
+        self.action += action
 
+        # print(self.action)
         success, self.traj_pos, self.traj_force = self.rope.step(self.action) #this might have to be updated to use with RL
 
         if not success:
-            observation_state = {'pos_traj': np.zeros((40,101)), 
+            observation_state = {'pos_traj': np.zeros((20,101)), 
                                  'force_traj': np.zeros((2,101)),
                                  'action': self.action, 
                                  'goal': self.goal}
@@ -85,6 +98,7 @@ class RopeEnv(gym.Env,):
                              'action': self.action, 
                              'goal': self.goal}
 
+        # observation_state = {'goal': self.goal}
 
         reward = (self.original_cost - self.costFun()) / self.original_cost * 100
 
@@ -93,46 +107,44 @@ class RopeEnv(gym.Env,):
         if self.current_iter >= self.max_iter:
             terminate = True
 
-        self.render()
-
+        # print(reward)
         return observation_state, reward, terminate, {}
+        # return np.concatenate((self.goal, training_state)), reward, terminate, {}
 
     def reset(self, seed = None):
 
-        render_mode = self.rope.render_mode
-        self.rope.render_mode = None
-
         self._simulation_start_state = self.rope.reset(seed)
-        self.action_space = spaces.Box(self.action_low, self.action_high, dtype=np.float64, seed = seed)
 
         np.random.seed(seed)
 
+        self.X = np.random.rand(3, 100_000)
+        self.X[:2, :] = self.X[:2, :] * (self.high - self.low) - self.high
+        self.X[2, :] = self.X[2, :] * 2 * np.pi - np.pi
+        self.X = self.X.T
+
+        self.X = torch.from_numpy(self.X.astype(np.float32))
+        self.y = self.model(self.X).detach().numpy()n
+
         self.goal = np.random.random(2) * (self.high - self.low) - self.high
+        self.render()
 
         self.current_iter = 0
-        self.action = np.zeros(3)
 
-        observation_state, _, _, _ = self.step(self.action)
+        i = np.argmin(np.linalg.norm(self.goal - self.y, axis = 1))
+        self.action = self.X[i, :].detach().numpy()
 
+        print(self.action)
+        observation_state, _, _, _ = self.step(0) #this might have to be updated to use with RL
+        print("done first iter")
         self.original_cost = self.costFun()
-
-        # print(self.goal_circle)
-
-        self.rope.render_mode = render_mode
-
-        self.render()
 
         return observation_state
 
     def render(self, render_mode = None):
 
-        if self.rope.ax is not None:
+        if self.rope.render_mode is not None:
             if self.goal_circle is None:
-                if self.rope.render_mode == "Both":
-                    print(self.goal)
-                    self.goal_circle = self.rope.ax["A"].plot(self.goal[0], self.goal[1], 'g', marker = '+', markersize=6, markeredgewidth=1)[0]
-                if self.rope.render_mode == "Human":
-                    self.goal_circle = self.rope.ax.plot(self.goal[0], self.goal[1], 'g', marker = '+', markersize=6, markeredgewidth=1)[0]                    
+                self.goal_circle = self.rope.ax.plot(self.goal[0], self.goal[1], 'g', marker = '+', markersize=6, markeredgewidth=1)[0]
             else:
                 self.goal_circle.set_xdata(self.goal[0])     
                 self.goal_circle.set_ydata(self.goal[1])     

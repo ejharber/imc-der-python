@@ -38,7 +38,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, tra
     free_top = 2*N
 
     # Tolerance
-    tol = 1e-1 # division of rod length puts units in N
+    tol = 1e-4 # division of rod length puts units in N
 
     q = 0
     f = 0
@@ -77,6 +77,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, tra
 
             iteration += 1
             if iteration >= max_iteration:
+                print("max iter reached")
                 return f_save, q_save, u_save, False
 
             # Inertia
@@ -143,6 +144,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, tra
             q[free_bot:free_top] = q_free
             err = np.sum(np.absolute(f_free))  # error is sum of forces bc we want f=0
 
+        # print(iteration, err)
         # update
         u0 = (q - q0) / dt  # New velocity becomes old velocity for next iter
         q0 = q  # Old position
@@ -152,6 +154,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, tra
         q_save[:, c] = q[:,0]
         u_save[:, c] = u0[:,0]
 
+    # print()
     return f_save, q_save, u_save, True
 
 @jit(nopython=True, cache=True, boundscheck=False)
@@ -163,7 +166,7 @@ def cross_mat(a):
     """
     c = [[0, -a[2], a[1]],
          [a[2], 0, -a[0]],
-         [a[1], a[0], 0]]
+         [-a[1], a[0], 0]]
     return np.array(c)
 
 

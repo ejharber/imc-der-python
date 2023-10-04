@@ -7,61 +7,46 @@ import torch
 from torch.utils.data import Dataset, DataLoader 
 from torch import nn
 from torch import optim
+from model import NeuralNetwork
+import os 
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 # Assuming that we are on a CUDA machine, this should print a CUDA device:
 
-print(device)
-
-file_names = ["rope_motion_noise_0.npz", "rope_motion_noise_50000.npz", "rope_motion_noise_100000.npz", "rope_motion_noise_200000.npz", 
-             "rope_motion_noise_300000.npz", "rope_motion_noise_350000.npz", "rope_motion_noise_500000.npz"]
-# file_names = ["rope_motion_noise_350000.npz", "rope_motion_noise_400000.npz", "rope_motion_noise_0.npz", "rope_motion_noise_50000.npz"]
-
 X = np.array([])
 y = np.array([])
 
-for file in file_names:
+for file in os.listdir("data"):
     print(file)
-    data = np.load(file)
+    try:
+        data = np.load("data/" + file, allow_pickle=True)
+    except:
+        continue 
 
-    # if file == "rope_motion_noise_50000.npz":
-    X_1 = data["actions_0"]
-    X_1 = np.append(X_1, data["x_0"], axis=1)
-    X_1 = np.append(X_1, data["actions_1"], axis=1)
-    y_1 = data["x_ee_1"]
+    # print(X.shape)
+    if len(X.shape) == 1:
+        X = data["actions"]
+        y = np.array(data["trajs_pos"])[:,-2:,-1]
 
-    # else:
-        # X_1 = np.array([])
-        # y_1 = np.array([])
+    else:
+        X = np.append(X, data["actions"], axis=0)
+        y = np.append(y, data["trajs_pos"][:,-2:,-1], axis=0)
 
+    if X.shape[0] > 1_000_000:
+        break
 
-    X_2 = data["actions_1"]
-    X_2 = np.append(X_2, data["x_1"], axis=1)
-    X_2 = np.append(X_2, data["actions_2"], axis=1)
+success = []
+print(X.shape, y.shape)
+for i in range(y.shape[0]):
+    if not np.all(y[i, :] == 0):
+        success.append(i)
 
-    y_2 = data["x_ee_2"]
+X = X[success, :]
+y = y[success, :]
 
-    X_3 = data["actions_2"]
-    X_3 = np.append(X_3, data["x_2"], axis=1)
-    X_3 = np.append(X_3, data["actions_3"], axis=1)
-
-    y_3 = data["x_ee_3"]
-
-    if X.shape[0] == 0:
-        X = X_1
-    X = np.append(X, X_2, axis=0)
-    X = np.append(X, X_3, axis=0)
-
-    if y.shape[0] == 0:
-        y = y_1
-    y = np.append(y, y_2, axis=0)
-    y = np.append(y, y_3, axis=0)
-
-print(X.shape, X_1.shape)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.33, random_state=26)
 
-# Convert data to torch tensors
 class Data(Dataset):
     def __init__(self, X, y):
         self.X = torch.from_numpy(X.astype(np.float32))
@@ -76,7 +61,7 @@ class Data(Dataset):
     def __len__(self): 
         return self.len
     
-batch_size = 64*64*32*4
+batch_size = 64*64*64*32
 
 # Instantiate training and test data
 train_data = Data(X_train, y_train)
@@ -90,38 +75,22 @@ for batch, (X, y) in enumerate(train_dataloader):
     print(f"Batch: {batch+1}")
     print(f"X shape: {X.shape}")
     print(f"y shape: {y.shape}")
-    break
+    # break
 
-input_dim = 26
-hidden_dim = 64
+input_dim = 3
+hidden_dim = 128 // 2
 output_dim = 2
-
-class NeuralNetwork(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim): 
-        super(NeuralNetwork, self).__init__()
-        self.layer_1 = nn.Linear(input_dim, hidden_dim)
-        nn.init.kaiming_uniform_(self.layer_1.weight, nonlinearity="relu")
-        self.layer_2 = nn.Linear(hidden_dim, hidden_dim) 
-        nn.init.kaiming_uniform_(self.layer_2.weight, nonlinearity="relu")
-        self.layer_3 = nn.Linear(hidden_dim, output_dim) 
-        nn.init.kaiming_uniform_(self.layer_3.weight, nonlinearity="relu")
-        
-    def forward(self, x):
-        x = torch.nn.functional.relu(self.layer_1(x))
-        x = torch.nn.functional.relu(self.layer_2(x))
-        x = self.layer_3(x)
-        return x
         
 model = NeuralNetwork(input_dim, hidden_dim, output_dim)
 model.to(device)
 
 print(model)
 
-learning_rate = 0.2
+learning_rate = 0.05
 loss_fn = nn.MSELoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
-num_epochs = 5000
+num_epochs = 100000
 loss_values_train = []
 loss_values_test = []
 for epoch in range(num_epochs):
@@ -142,7 +111,7 @@ for epoch in range(num_epochs):
         loss_values_test.append(loss.item())
         print(epoch, loss)
 
-torch.save(model.state_dict(), "iterative_noise_64_downsample_first_motion")
+torch.save(model.state_dict(), "model_params/64_64")
 
 print("Training Complete")
 

@@ -3,14 +3,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
-rope = RopePython("Both")
-rope.reset(random_sim_params = False)
+max_lim = 0.2
+min_lim = - max_lim
 
-for _ in range(100):
-    success, traj_pos, traj_force = rope.step(np.array([0.2, 0.2, np.pi/2]))
-    time.sleep(1)
-print(traj_pos.shape)
-print(traj_force.shape)
+max_lim_angle = 3 / 2 * np.pi
+min_lim_angle = - max_lim_angle
+
+for i in range(100):
+    rope = RopePython(True)
+    rope.reset(seed = i)
+    np.random.seed(i)
+    rand_action = np.random.random((3, 1))
+    rand_action[:2] = rand_action[:2] * (max_lim - min_lim) - max_lim
+    rand_action[2] = max_lim_angle * np.random.choice([-1, 1])
+    
+    print(i, rand_action)
+    # rand_action += np.random.random(rand_action.shape) * 1e-2
+    # print(rand_action)
+    success, traj_pos, traj_force = rope.step(rand_action)
+
+    if not success:
+        np.save(str(i), rand_action)
+        break
+    # print(rand_action, success)
+    # time.sleep(1)
+# print(traj_pos.shape)
+# print(traj_force.shape)
 
 # fig, axs = plt.subplots(2, 2)
 # axs[0, 0].imshow(traj_pos[0::2])
