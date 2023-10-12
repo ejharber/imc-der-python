@@ -1,22 +1,15 @@
-import sys
-sys.path.append("../gym/")
-
-from rope_gym2 import RopeEnv
+from rope_gym_RL import RopeEnvRL
 import gym 
-from stable_baselines3 import PPO
 import numpy as np 
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
-from stable_baselines3.common.env_checker import check_env
 
-env = RopeEnv(1)
-model = PPO.load("rope_random_delta")
+env = RopeEnvRL(True, "Both")
 
-for _ in range(10):
-    obs = env.reset()
-    for _ in range(10):
-        action, _states = model.predict(obs)
-        obs, rewards, done, info = env.step(action)
-        print(rewards)
-        if done: break
+for i in range(10):
+    # for i in range(1, 1000):
+    env.reset(seed = i)
 
+    for rollout in range(5):
+        action = env.action_space.sample()
+        env.step(action)
+   
 env.close()

@@ -7,74 +7,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader 
 from torch import nn
 from torch import optim
-
-class NeuralNetwork(nn.Module):
-    def __init__(self): 
-
-        def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-            torch.nn.init.orthogonal_(layer.weight, std)
-            torch.nn.init.constant_(layer.bias, bias_const)
-            return layer
-
-        super(NeuralNetwork, self).__init__()
-
-        self.cnn_pos = nn.Sequential(
-            layer_init(nn.Conv2d(2, 4, 4, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(4, 4, 2, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(4, 4, 2, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(4, 1, 2, stride=1)),
-            nn.ReLU(),
-            nn.Flatten(start_dim=1),
-            # layer_init(nn.Linear(11, 256)),
-            # nn.ReLU(),
-        )
-
-        self.cnn_force = nn.Sequential(
-            layer_init(nn.Conv1d(2, 4, 4, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv1d(4, 4, 2, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv1d(4, 4, 2, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv1d(4, 1, 2, stride=1)),
-            nn.ReLU(),
-            nn.Flatten(start_dim=1),
-            # layer_init(nn.Linear(11, 256)),
-            # nn.ReLU(),
-        )
-
-        self.network = nn.Sequential(
-            layer_init(nn.Linear(11 + 3, 256)),
-            nn.ReLU(),
-            layer_init(nn.Linear(256, 256)),
-            nn.ReLU(),
-            layer_init(nn.Linear(256, 2)),
-            )
-
-        
-    def forward(self, img_pos, img_force, next_action):
-        img_force = img_force[:,:,0,:]
-        x_pos = self.cnn_pos(img_pos)
-        # x_force = self.cnn_force(img_force)
-        x = torch.cat((x_pos, next_action), dim=1)
-        x = self.network(x)
-        return x
-      
-def data2imgs(data_traj, data_force):
-    img_pos = data_traj
-    img_pos_x = np.expand_dims(img_pos[:, ::2, :], 1)
-    img_pos_y = np.expand_dims(img_pos[:, 1::2, :], 1)
-    img_pos = np.concatenate((img_pos_x, img_pos_y), axis=1)
-
-    img_force = data_force
-    img_force_x = np.expand_dims(img_force[:, ::2, :], 1)
-    img_force_y = np.expand_dims(img_force[:, 1::2, :], 1)
-    img_force = np.concatenate((img_force_x, img_force_y), axis=1)
-
-    return img_pos, img_force
+from model_iter import *
 
 # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 device = "cpu"
@@ -101,13 +34,13 @@ for file in file_names:
     X_0 = data["actions_1"]
     y_0 = np.array(data["traj_pos_1"])[:,-2:,-1]
 
-    X_1 = data["actions_2"] - X_0
-    img_pos_1, img_force_1 = data2imgs(data["traj_pos_1"], data["traj_force_1"])
-    y_1 = np.array(data["traj_pos_2"])[:,-2:,-1] - y_0
+    # X_1 = data["actions_2"] - X_0
+    # img_pos_1, img_force_1 = data2imgs(data["traj_pos_1"], data["traj_force_1"])
+    # y_1 = np.array(data["traj_pos_2"])[:,-2:,-1] - y_0
 
-    X_2 = data["actions_3"] - X_0
-    img_pos_2, img_force_2 = data2imgs(data["traj_pos_2"], data["traj_force_2"])  
-    y_2 = np.array(data["traj_pos_3"])[:,-2:,-1] - y_0
+    # X_2 = data["actions_3"] - X_0
+    # img_pos_2, img_force_2 = data2imgs(data["traj_pos_2"], data["traj_force_2"])  
+    # y_2 = np.array(data["traj_pos_3"])[:,-2:,-1] - y_0
 
     X_3 = data["actions_4"] - X_0
     img_pos_3, img_force_3 = data2imgs(data["traj_pos_3"], data["traj_force_3"])  
@@ -118,20 +51,26 @@ for file in file_names:
     y_4 = np.array(data["traj_pos_5"])[:,-2:,-1] - y_0 
 
     if X.shape[0] == 0:
-        X = X_1
-        img_pos = img_pos_1
-        img_force = img_force_1
-        y = y_1
+        X = X_3
+        img_pos = img_pos_3
+        img_force = img_force_3
+        y = y_3
     else:
-        X = np.append(X, X_1, axis = 0)
-        img_pos = np.append(img_pos, img_pos_1, axis = 0)
-        img_force = np.append(img_force, img_force_1, axis = 0)
-        y = np.append(y, y_1, axis = 0)
+        X = np.append(X, X_3, axis = 0)
+        img_pos = np.append(img_pos, img_pos_3, axis = 0)
+        img_force = np.append(img_force, img_force_3, axis = 0)
+        y = np.append(y, y_3, axis = 0)
+    
+    # else:
+    #     X = np.append(X, X_1, axis = 0)
+    #     img_pos = np.append(img_pos, img_pos_1, axis = 0)
+    #     img_force = np.append(img_force, img_force_1, axis = 0)
+    #     y = np.append(y, y_1, axis = 0)
 
-    X = np.append(X, X_2, axis = 0)
-    img_pos = np.append(img_pos, img_pos_2, axis = 0)
-    img_force = np.append(img_force, img_force_2, axis = 0)
-    y = np.append(y, y_2, axis = 0)
+    # X = np.append(X, X_2, axis = 0)
+    # img_pos = np.append(img_pos, img_pos_2, axis = 0)
+    # img_force = np.append(img_force, img_force_2, axis = 0)
+    # y = np.append(y, y_2, axis = 0)
 
     X = np.append(X, X_3, axis = 0)
     img_pos = np.append(img_pos, img_pos_3, axis = 0)
@@ -142,6 +81,11 @@ for file in file_names:
     img_pos = np.append(img_pos, img_pos_4, axis = 0)
     img_force = np.append(img_force, img_force_4, axis = 0)
     y = np.append(y, y_4, axis = 0)
+
+    # break
+
+print(np.min(X), np.max(X), np.min(img_pos), np.max(img_pos), np.min(img_force), np.max(img_force))
+# exit()
 
 # load to gpu
 # X_ = X
@@ -160,9 +104,6 @@ img_force = img_force / np.max(img_force)
 img_force = 2 * (img_force - 0.5)
 img_force = torch.from_numpy(img_force.astype(np.float32)).to(device)
 
-y = y - np.min(y)
-y = y / np.max(y)
-y = 2 * (y - 0.5)
 y = torch.from_numpy(y.astype(np.float32)).to(device)
 
 # split training and testing 
@@ -178,23 +119,18 @@ img_pos_train, img_pos_test = img_pos[rand_i[:split], :, :, :], img_pos[rand_i[s
 img_force_train, img_force_test = img_force[rand_i[:split], :, :, :], img_force[rand_i[split:], :, :, :]
 y_train, y_test = y[rand_i[:split], :], y[rand_i[split:], :]
 
-
-
-# print(X_train.shape, X_test.shape, img_train.shape, img_test.shape)
-# exit()
-# create model
-model = NeuralNetwork()
+model = IterativeNeuralNetwork_2(True)
 model.to(device)
 
 print(model)
 
 # model.forward(img_train, X_train)
 
-learning_rate = 0.04
+learning_rate = .8
 loss_fn = nn.MSELoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
-num_epochs = 10000
+num_epochs = 5000
 loss_values_train = []
 loss_values_test = []
 for epoch in range(num_epochs):
@@ -215,7 +151,7 @@ for epoch in range(num_epochs):
     loss_values_test.append(loss.item())
     print("no force", epoch, loss_values_test[-1], loss_values_train[-1])
 
-torch.save(model.state_dict(), "iterative_delta_no_force")
+torch.save(model.state_dict(), "iterative_delta_force_2")
 
 print("Training Complete")
 

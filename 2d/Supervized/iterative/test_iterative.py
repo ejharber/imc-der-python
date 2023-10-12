@@ -9,55 +9,7 @@ import torch
 from torch import nn
 import matplotlib.pyplot as plt
 from model import NeuralNetwork
-
-class IterativeNeuralNetwork(nn.Module):
-    def __init__(self): 
-
-        def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-            torch.nn.init.orthogonal_(layer.weight, std)
-            torch.nn.init.constant_(layer.bias, bias_const)
-            return layer
-
-        super(IterativeNeuralNetwork, self).__init__()
-
-        self.cnn_pos = nn.Sequential(
-            layer_init(nn.Conv2d(2, 8, 4, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(8, 16, 4, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(16, 32, 2, stride=1)),
-            nn.ReLU(),
-            nn.Flatten(start_dim=1),
-            layer_init(nn.Linear(1408, 256)),
-            nn.ReLU(),
-        )
-
-        self.cnn_force = nn.Sequential(
-            layer_init(nn.Conv2d(2, 8, 4, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(8, 16, 4, stride=2)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(16, 32, 2, stride=1)),
-            nn.ReLU(),
-            nn.Flatten(start_dim=1),
-            layer_init(nn.Linear(1408, 256)),
-            nn.ReLU(),
-        )
-
-        self.network = nn.Sequential(
-            layer_init(nn.Linear(6 + 253, 256)),
-            nn.ReLU(),
-            layer_init(nn.Linear(256, 256)),
-            nn.ReLU(),
-            layer_init(nn.Linear(256, 2)),
-            )
-
-        
-    def forward(self, img, next_action):
-        x = self.cnn_pos(img)
-        x = torch.cat((x, next_action), dim=1)
-        x = self.network(x)
-        return x
+from model_iter import *
 
 env = RopeEnv(True)
 
@@ -79,20 +31,15 @@ X_zero_shot = torch.from_numpy(X_zero_shot.astype(np.float32))
 y_zero_shot = model(X_zero_shot).detach().numpy()
 
 model_iter = IterativeNeuralNetwork()
-model_iter.load_state_dict(torch.load("model_params/iterative_delta", map_location=torch.device('cpu')))
+model_iter.load_state_dict(torch.load("iterative_delta_force", map_location=torch.device('cpu')))
 
 # load iterative info 
-X_iter = np.random.rand(3, 100_000)
-X_iter[:2, :] = (X_iter[:2, :] * (env.high - env.low) - env.high) / 100.0
-X_iter[2, :] = (X_iter[2, :] * 2 * np.pi - np.pi) / 100.0
-X_iter = X_iter.T
 
-X_iter = torch.from_numpy(X_iter.astype(np.float32))
 # y_zero_shot = model(X_zero_shot).detach().numpy() # need to wait for feedback 
 
 MSE = []
 
-for trials in range(2):
+for trials in range(100):
 
     mse = []
 
@@ -105,19 +52,36 @@ for trials in range(2):
 
     mse.append(env.costFun())
    
-    for iterative in range(5):
+    for iterative in range(20):
 
-        img_pos = obs["pos_traj"]
-        print(img_pos.shape)
-        img_pos_x = np.expand_dims(img_pos[::2, :], 0)
-        img_pos_y = np.expand_dims(img_pos[1::2, :], 0)
+        img_pos, img_force = data2imgs_test(obs["pos_traj"], obs["force_traj"])  
+        
+        # load to gpu
+        # X_ = X
+        X_iter = np.random.rand(3, 100_000)
+        X_iter[:2, :] = (X_iter[:2, :] * (env.high - env.low) + env.low) / 100.0
+        X_iter[2, :] = (X_iter[2, :] * 2 * np.pi - np.pi) / 100.0
+        X_iter = X_iter.T
 
-        img = np.concatenate((img_pos_x, img_pos_y), axis = 0)
-        img = np.expand_dims(img, 0)
-        img = np.repeat(img, 100_000, 0)
-        img = torch.from_numpy(img.astype(np.float32))
+        X_iter_ = np.copy(X_iter)
+        X_iter_ = torch.from_numpy(X_iter_.astype(np.float32))
 
-        pred_offset = model_iter.forward(img, X_iter).detach().numpy()
+        X_iter_ = X_iter_ - -0.03141361697681777
+        X_iter_ = X_iter_ / (0.03141440957175545 - -0.03141361697681777)
+        X_iter_ = 2 * (X_iter_ - 0.5)
+        # X = torch.from_numpy(X.astype(np.float32)).to(device)
+
+        img_pos = img_pos - -0.2995163480218865
+        img_pos = img_pos / (0.3014384602381632 - -0.2995163480218865)
+        img_pos = 2 * (img_pos - 0.5)
+        # img_pos = torch.from_numpy(img_pos.astype(np.float32)).to(device)
+
+        img_force = img_force - -43.33904941588156
+        img_force = img_force / (90.96007853103129 - -43.33904941588156)
+        img_force = 2 * (img_force - 0.5)
+        # img_force = torch.from_numpy(img_force.astype(np.float32)).to(device)
+
+        pred_offset = model_iter.forward(img_pos, img_force, X_iter_).detach().numpy()
 
         offset =  (goal - obs["pos_traj"][-2:, -1])
 
@@ -126,7 +90,9 @@ for trials in range(2):
         i = np.argmin(np.linalg.norm(offset - pred_offset, axis = 1))
 
         print(X_iter[i, :], action)
-        action += X_iter[i, :].detach().numpy()
+
+        action += X_iter[i, :]
+        print("UPDATE", X_iter[i, :])
 
         obs, rewards, done, info = env.step(action)
 
@@ -140,14 +106,5 @@ plt.figure()
 plt.plot(MSE.T)
 plt.show()
 
-        # exit()
-
-    # print(y.shape)
-
-    # print(trials, MSE[-1], MSE[-1]**2, np.linalg.norm(goal - y[i, :]))
-
-# print(np.mean(np.array(MSE)))
-
-# np.save("analysis/64_64", MSE)
-
+np.save('mse', MSE)
 env.close()

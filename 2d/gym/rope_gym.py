@@ -52,7 +52,7 @@ class RopeEnv(gym.Env,):
                                        'action': self.action_space, 
                                        'goal': self.goal_space})
 
-        self.reset()
+        # self.reset()
 
     def costFun(self):
 
