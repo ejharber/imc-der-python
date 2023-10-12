@@ -47,10 +47,11 @@ class RopeEnv(gym.Env,):
         force_traj_high = np.ones((2, 101)) * np.inf        
         force_traj_os = spaces.Box(force_traj_low, force_traj_high, dtype=np.float64)
 
-        self.observation_space = spaces.Dict({'pos_traj': pos_traj_os, 
-                                       'force_traj': force_traj_os,
+        self.observation_space = spaces.Dict({'traj_pos': pos_traj_os, 
+                                       'traj_force': force_traj_os,
                                        'action': self.action_space, 
-                                       'goal': self.goal_space})
+                                       'goal': self.goal_space, 
+                                       'goal_vec': self.goal_space})
 
         # self.reset()
 
