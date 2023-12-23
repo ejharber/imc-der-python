@@ -147,6 +147,7 @@ class RopePython(object):
         self.traj_force = np.array([force_x, force_y])[:2,:]
 
         if self.render_mode is not None:
+            self.render()
             if self.render_mode == "Human":
                 for i in range(0, q_save.shape[1], 10):
                     x = q_save[:, i]
@@ -207,7 +208,8 @@ class RopePython(object):
 
         if self.render_mode == "Human":
             if self.fig is None:
-                # sns.set() # Setting seaborn as default style even if use only matplotlib
+                print('new')
+                sns.set() # Setting seaborn as default style even if use only matplotlib
                 self.fig, self.ax = plt.subplots(figsize=(5, 5))
 
                 self.circles = []
@@ -218,8 +220,9 @@ class RopePython(object):
                     self.ax.add_patch(self.circles[-1])
                 self.circles += [patches.Circle((state.x_1[n], state.x_2[n]), radius=self.radius, ec = None, fc='green')]
                 self.ax.add_patch(self.circles[-1])
-
-                lim = .4
+                self.ax.annotate("g", xytext=(-0.205, -0.16), xy=(-0.2, -0.23),
+                             arrowprops=dict(arrowstyle='->', lw=1.5, color='black'), fontsize=12, color='black')
+                lim = .25
                 self.ax.axis('equal')
                 self.ax.set_xlim(-lim, lim)
                 self.ax.set_ylim(-lim, lim)
@@ -403,16 +406,34 @@ class RopePython(object):
 
         # Later
         # self.fig.canvas.draw()
-        # image = np.array(self.fig.canvas.renderer.buffer_rgba())
-        # if image.shape[0] == 750:
-        #     self.save_render.append(image)
-        # print(image.shape)
-        # # now you have a numpy array representing the rendered image
-        # # print(image.shape)  # (height, width, channels)
+        image = np.array(self.fig.canvas.renderer.buffer_rgba())
+        if len(self.save_render) == 0:
+            self.save_render.append(image)
+        elif np.all(image.shape == self.save_render[-1].shape):
+            self.save_render.append(image)
+        else:
+            self.save_render = []
+            self.save_render.append(image)
 
-    def close(self):
-        pass
-        # if self.render_mode is not None:
-        #     plt.close(self.fig)
-        #     imageio.mimsave('animation.gif', self.save_render, duration=self.dt*1000)
+        print(image.shape)
+        # now you have a numpy array representing the rendered image
+        # print(image.shape)  # (height, width, channels)
+
+    def close(self, filename="animation"):
+        if self.render_mode is not None:
+            plt.close(self.fig)
+            self.save_render = np.array(self.save_render)
+            # self.save_render = np.append(self.save_render,
+            #                              np.repeat(self.save_render[-1:, :, :, :], 6, axis=0),
+            #                              axis = 0)
+            print(self.save_render.shape, self.save_render[-1:, :, :, :].shape)
+
+            # Create the GIF
+            output_file = filename + '.gif'
+            with imageio.get_writer(output_file, mode='I', duration=0.01, loop=0) as writer:
+                for i in range(self.save_render.shape[0]):
+                    image = self.save_render[i, :, :, :]
+                    image[0,0,0] = i
+                    writer.append_data(image)
+                    print(i)
 

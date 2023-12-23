@@ -1,6 +1,8 @@
 import sys
 sys.path.append("../gym/")
 
+sys.path.append("../gym/")
+
 from rope_gym import RopeEnv
 import numpy as np 
 

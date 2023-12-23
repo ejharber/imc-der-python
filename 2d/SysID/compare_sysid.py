@@ -1,7 +1,7 @@
 import sys
 sys.path.append("../gym/")
 
-from rope_gym2 import RopeEnv
+from rope_gym import RopeEnv
 
 from skopt import dump, load
 from skopt.plots import plot_convergence
@@ -18,7 +18,7 @@ def cost_fun(params, data, actions, training_states):
     damp = params[2]
     m = params[3]
 
-    env = RopeEnv()
+    env = RopeEnv(False)
 
     env.rope.EI = EI
     env.rope.EA = EA
@@ -43,7 +43,7 @@ def cost_fun(params, data, actions, training_states):
 
 def get_costs_BO(res):
 
-    data = np.load("bayes_opt_training_large.npz")
+    data = np.load("data/bayes_opt_training_large.npz")
     actions = data["actions"]
     training_states = data["training_states"]
 
@@ -66,7 +66,7 @@ def get_costs_BO(res):
 
 def get_costs_DE(x_iters):
 
-    data = np.load("bayes_opt_training_large.npz")
+    data = np.load("data/bayes_opt_training_large.npz")
     actions = data["actions"]
     training_states = data["training_states"]
 
@@ -103,8 +103,8 @@ plt.figure()
 # plt.figure()
 # costs_DE_force = get_costs_DE(np.load("DE_force.npy"))
 # costs_DE_no_force = get_costs_DE(np.load("DE_no_force.npy"))
-costs_DE_force_scaled = get_costs_DE(np.load("DE_force_scaled_noise_500samples.npy"))
-costs_DE_no_force_scaled = get_costs_DE(np.load("DE_no_force_scaled_noise_500samples.npy"))
+costs_DE_force_scaled = get_costs_DE(np.load("data/DE_force_scaled_noise_500samples.npy"))
+costs_DE_no_force_scaled = get_costs_DE(np.load("data/DE_no_force_scaled_noise_500samples.npy"))
 
 # plt.plot(costs_DE_force, label="DE: force")
 # plt.plot(costs_DE_no_force, label="DE: no force")

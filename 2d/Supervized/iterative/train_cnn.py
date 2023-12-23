@@ -38,9 +38,9 @@ for file in file_names:
     # img_pos_1, img_force_1 = data2imgs(data["traj_pos_1"], data["traj_force_1"])
     # y_1 = np.array(data["traj_pos_2"])[:,-2:,-1] - y_0
 
-    # X_2 = data["actions_3"] - X_0
-    # img_pos_2, img_force_2 = data2imgs(data["traj_pos_2"], data["traj_force_2"])  
-    # y_2 = np.array(data["traj_pos_3"])[:,-2:,-1] - y_0
+    X_2 = data["actions_3"] - X_0
+    img_pos_2, img_force_2 = data2imgs(data["traj_pos_2"], data["traj_force_2"])  
+    y_2 = np.array(data["traj_pos_3"])[:,-2:,-1] - y_0
 
     X_3 = data["actions_4"] - X_0
     img_pos_3, img_force_3 = data2imgs(data["traj_pos_3"], data["traj_force_3"])  
@@ -51,15 +51,15 @@ for file in file_names:
     y_4 = np.array(data["traj_pos_5"])[:,-2:,-1] - y_0 
 
     if X.shape[0] == 0:
-        X = X_3
-        img_pos = img_pos_3
-        img_force = img_force_3
-        y = y_3
+        X = X_2
+        img_pos = img_pos_2
+        img_force = img_force_2
+        y = y_2
     else:
-        X = np.append(X, X_3, axis = 0)
-        img_pos = np.append(img_pos, img_pos_3, axis = 0)
-        img_force = np.append(img_force, img_force_3, axis = 0)
-        y = np.append(y, y_3, axis = 0)
+        X = np.append(X, X_2, axis = 0)
+        img_pos = np.append(img_pos, img_pos_2, axis = 0)
+        img_force = np.append(img_force, img_force_2, axis = 0)
+        y = np.append(y, y_2, axis = 0)
     
     # else:
     #     X = np.append(X, X_1, axis = 0)
@@ -83,6 +83,10 @@ for file in file_names:
     y = np.append(y, y_4, axis = 0)
 
     # break
+# can we learn the foward dynamics problem?
+X_ = X
+X = y
+y = X_
 
 print(np.min(X), np.max(X), np.min(img_pos), np.max(img_pos), np.min(img_force), np.max(img_force))
 # exit()
@@ -126,7 +130,7 @@ print(model)
 
 # model.forward(img_train, X_train)
 
-learning_rate = .8
+learning_rate = .5
 loss_fn = nn.MSELoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
@@ -151,7 +155,7 @@ for epoch in range(num_epochs):
     loss_values_test.append(loss.item())
     print("no force", epoch, loss_values_test[-1], loss_values_train[-1])
 
-torch.save(model.state_dict(), "iterative_delta_force_2")
+torch.save(model.state_dict(), "iterative_delta_force_foward_dynamics")
 
 print("Training Complete")
 

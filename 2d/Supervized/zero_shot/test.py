@@ -18,7 +18,10 @@ output_dim = 2
 model = NeuralNetwork(input_dim, hidden_dim, output_dim)
 model.load_state_dict(torch.load("model_params/128_128", map_location=torch.device('cpu')))
 
-env = RopeEnv(True, "Both")
+env = RopeEnv(True, "Human")
+obs = env.reset()
+env.goal *= 1000
+obs, rewards, done, info = env.step(np.array([0,0,0]))
 
 X = np.random.rand(3, 10000000)
 X[:2, :] = X[:2, :] * (env.high - env.low) - env.high
@@ -29,7 +32,7 @@ X = torch.from_numpy(X.astype(np.float32))
 y = model(X).detach().numpy()
 
 MSE = []
-for trials in range(20):
+for trials in range(10):
     obs = env.reset()
 
     goal = env.goal

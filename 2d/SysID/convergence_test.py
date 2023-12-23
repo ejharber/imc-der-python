@@ -1,3 +1,6 @@
+import sys
+sys.path.append("../gym/")
+
 from rope_gym import RopeEnv
 import numpy as np 
 from skopt import gp_minimize

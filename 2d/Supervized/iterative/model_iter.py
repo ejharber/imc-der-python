@@ -55,6 +55,17 @@ def data2imgs_test(data_traj, data_force):
 #     return img_pos, img_force
 
 class IterativeNeuralNetwork(nn.Module):
+    class PrintLayer(nn.Module):
+        def __init__(self):
+            super(PrintLayer, self).__init__()
+                        
+        def forward(self, x):
+            # Do your print / debug stuff here
+            print(x.shape)
+            return x
+
+
+
     def __init__(self, include_force = True): 
 
         def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
@@ -77,6 +88,7 @@ class IterativeNeuralNetwork(nn.Module):
             nn.Flatten(start_dim=1),
             # layer_init(nn.Linear(11, 256)),
             # nn.ReLU(),
+
         )
 
         self.cnn_force = nn.Sequential(
@@ -122,8 +134,22 @@ class IterativeNeuralNetwork(nn.Module):
         x = self.network(x)
         return x
 
+class PrintLayer(nn.Module):
+    def __init__(self):
+        super(PrintLayer, self).__init__()
+                    
+    def forward(self, x):
+        # Do your print / debug stuff here
+        print(x.shape)
+        return x
+
 class IterativeNeuralNetwork_2(nn.Module):
+
+
+
+
     def __init__(self, include_force = True): 
+
 
         def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
             torch.nn.init.orthogonal_(layer.weight, std)
@@ -134,15 +160,21 @@ class IterativeNeuralNetwork_2(nn.Module):
         self.include_force = include_force
 
         self.cnn_pos = nn.Sequential(
+            PrintLayer(),
             layer_init(nn.Conv2d(2, 8, 4, stride=2)),
             nn.ReLU(),
+            PrintLayer(),
             layer_init(nn.Conv2d(8, 16, 2, stride=2)),
             nn.ReLU(),
+            PrintLayer(),
             layer_init(nn.Conv2d(16, 32, 2, stride=2)),
             nn.ReLU(),
+            PrintLayer(),
             layer_init(nn.Conv2d(32, 4, 2, stride=1)),
             nn.ReLU(),
+            PrintLayer(),
             nn.Flatten(start_dim=1),
+            PrintLayer(),
             # layer_init(nn.Linear(11, 256)),
             # nn.ReLU(),
         )
@@ -163,21 +195,25 @@ class IterativeNeuralNetwork_2(nn.Module):
 
         if self.include_force:
             self.network = nn.Sequential(
-                layer_init(nn.Linear(91, 512)),
+                layer_init(nn.Linear(90, 512)),
                 nn.ReLU(),
                 layer_init(nn.Linear(512, 512)),
                 nn.ReLU(),
-                layer_init(nn.Linear(512, 2)),
+                layer_init(nn.Linear(512, 512)),
+                nn.ReLU(),
+                layer_init(nn.Linear(512, 512)),
+                nn.ReLU(),
+                layer_init(nn.Linear(512, 3)),
                 )
         else: 
             self.network = nn.Sequential(
-                layer_init(nn.Linear(47, 512)),
+                layer_init(nn.Linear(47 + 1, 512)),
                 nn.ReLU(),
                 layer_init(nn.Linear(512, 512)),
                 nn.ReLU(),
                 layer_init(nn.Linear(512, 512)),
                 nn.ReLU(),
-                layer_init(nn.Linear(512, 2)),
+                layer_init(nn.Linear(512, 3)),
                 )
 
         
@@ -185,9 +221,16 @@ class IterativeNeuralNetwork_2(nn.Module):
         img_force = img_force[:,:,0,:]
         img_pos = img_pos[:,0,:,:, :]
 
+        # print(img_pos.shape, img_force.shape, next_action.shape)
+
         x_pos = self.cnn_pos(img_pos)
+
+
+
         if self.include_force:
             x_force = self.cnn_force(img_force)
+
+            print(x_pos.shape, x_force.shape, next_action.shape)
             x = torch.cat((x_pos, x_force, next_action), dim=1)
         else:
             x = torch.cat((x_pos, next_action), dim=1)
