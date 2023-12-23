@@ -39,7 +39,7 @@ class RopeEnvRL(RopeEnv):
         self.action_space = spaces.Box(action_low, action_high, dtype=np.float64)
         self.action = np.zeros(3)
 
-    def step(self, action):
+    def step(self, action, options=None):
 
         self.rope.setState(self._simulation_start_state)
 
@@ -49,17 +49,19 @@ class RopeEnvRL(RopeEnv):
         success, self.traj_pos, self.traj_force = self.rope.step(self.action) #this might have to be updated to use with RL
 
         if not success:
-            observation_state = {'pos_traj': np.zeros((20,101)), 
-                                 'force_traj': np.zeros((2,101)),
+            observation_state = {'traj_pos': np.zeros((20,101)), 
+                                 'traj_force': np.zeros((2,101)),
                                  'action': self.action, 
-                                 'goal': self.goal}
+                                 'goal': self.goal,
+                                 'goal_vec': self.goal}
 
             return observation_state, 0, True, {}
 
-        observation_state = {'pos_traj': self.traj_pos, 
-                             'force_traj': self.traj_force,
+        observation_state = {'traj_pos': self.traj_pos, 
+                             'traj_force': self.traj_force,
                              'action': self.action, 
-                             'goal': self.goal}
+                             'goal': self.goal,
+                             'goal_vec': self.goal - self.rope._simulation.x_ee}
 
         # observation_state = {'goal': self.goal}
 
@@ -74,7 +76,7 @@ class RopeEnvRL(RopeEnv):
         return observation_state, reward, terminate, {}
         # return np.concatenate((self.goal, training_state)), reward, terminate, {}
 
-    def reset(self, seed = None):
+    def reset(self, seed = None, options=None):
 
         self._simulation_start_state = self.rope.reset(seed)
 
@@ -101,6 +103,6 @@ class RopeEnvRL(RopeEnv):
         print("done first iter")
         self.original_cost = self.costFun()
 
-        return observation_state
+        return observation_state, {}
 
 
