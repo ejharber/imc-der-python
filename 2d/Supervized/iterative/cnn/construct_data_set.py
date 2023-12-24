@@ -89,6 +89,7 @@ def construct_data(offset = 0):
         observation_state_9, _, _, _ = env.step(action + env.action_space.sample() / 1000)
         if np.all(observation_state_9["pos_traj"] == 0): continue  
 
+
         actions_0.append(observation_state_0["action"])
         traj_pos_0.append(observation_state_0["pos_traj"])
         traj_force_0.append(observation_state_0["force_traj"])
@@ -113,21 +114,21 @@ def construct_data(offset = 0):
         traj_pos_5.append(observation_state_5["pos_traj"])
         traj_force_5.append(observation_state_5["force_traj"])
 
-        actions_6.append(observation_state_6["action"])
-        traj_pos_6.append(observation_state_6["pos_traj"])
-        traj_force_6.append(observation_state_6["force_traj"])
+        actions_6.append(observation_state_5["action"])
+        traj_pos_6.append(observation_state_5["pos_traj"])
+        traj_force_6.append(observation_state_5["force_traj"])
 
-        actions_7.append(observation_state_7["action"])
-        traj_pos_7.append(observation_state_7["pos_traj"])
-        traj_force_7.append(observation_state_7["force_traj"])
+        actions_7.append(observation_state_5["action"])
+        traj_pos_7.append(observation_state_5["pos_traj"])
+        traj_force_7.append(observation_state_5["force_traj"])
 
-        actions_8.append(observation_state_8["action"])
-        traj_pos_8.append(observation_state_8["pos_traj"])
-        traj_force_8.append(observation_state_8["force_traj"])
+        actions_8.append(observation_state_5["action"])
+        traj_pos_8.append(observation_state_5["pos_traj"])
+        traj_force_8.append(observation_state_5["force_traj"])
 
-        actions_9.append(observation_state_9["action"])
-        traj_pos_9.append(observation_state_9["pos_traj"])
-        traj_force_9.append(observation_state_9["force_traj"])
+        actions_9.append(observation_state_5["action"])
+        traj_pos_9.append(observation_state_5["pos_traj"])
+        traj_force_9.append(observation_state_5["force_traj"])
 
         seeds.append(i + offset)
 
@@ -137,17 +138,17 @@ def construct_data(offset = 0):
                                                       actions_3=actions_3, traj_pos_3=traj_pos_3, traj_force_3=traj_force_3,
                                                       actions_4=actions_4, traj_pos_4=traj_pos_4, traj_force_4=traj_force_4,
                                                       actions_5=actions_5, traj_pos_5=traj_pos_5, traj_force_5=traj_force_5,
-                                                      actions_6=actions_6, traj_pos_6=traj_pos_6, traj_force_6=traj_force_6,
-                                                      actions_7=actions_7, traj_pos_7=traj_pos_7, traj_force_7=traj_force_7,
-                                                      actions_8=actions_8, traj_pos_8=traj_pos_8, traj_force_8=traj_force_8,
-                                                      actions_9=actions_9, traj_pos_9=traj_pos_9, traj_force_9=traj_force_9,
+                                                      actions_5=actions_6, traj_pos_5=traj_pos_6, traj_force_5=traj_force_6,
+                                                      actions_5=actions_7, traj_pos_5=traj_pos_7, traj_force_5=traj_force_7,
+                                                      actions_5=actions_8, traj_pos_5=traj_pos_8, traj_force_5=traj_force_8,
+                                                      actions_5=actions_9, traj_pos_5=traj_pos_9, traj_force_5=traj_force_9,
                                                       seeds=seeds)
 
 pool = mp.Pool(processes = 1)
 
 args = []
 
-for i in range(12*5):
+for i in range(2, 12*5):
     args.append(10_000 * i)
 
 pool.map(construct_data, args)
