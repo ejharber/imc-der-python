@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader 
 from torch import nn
 from torch import optim
-from models import *
+from model_lstm import *
 
 def load_data():
     file = "rope_motion_m=0_2.npz"
@@ -37,40 +37,40 @@ def load_data():
     traj_data[:, 40:, :] = np.random.normal(traj_data[:, 40:, :], 0.15, traj_data[:, 40:, :].shape) # artificial force sensor noise added
 
     # normalize data
-    traj_min_pos = np.min(traj_data[:, :40, :])
-    traj_data[:, :40, :] = traj_data[:, :40, :] - traj_min_pos
-    traj_max_pos = np.max(traj_data[:, :40, :])
-    traj_data[:, :40, :] = traj_data[:, :40, :] / traj_max_pos
+    traj_mean_pos = np.mean(traj_data[:, :40, :])
+    traj_std_pos = np.std(traj_data[:, :40, :])
+    traj_data[:, :40, :] = traj_data[:, :40, :] - traj_mean_pos
+    traj_data[:, :40, :] = traj_data[:, :40, :] / traj_std_pos
 
-    traj_min_force = np.min(traj_data[:, 40:, :])
-    traj_data[:, 40:, :] = traj_data[:, 40:, :] - traj_min_force
-    traj_max_force = np.max(traj_data[:, 40:, :])
-    traj_data[:, 40:, :] = traj_data[:, 40:, :] / traj_max_force
+    traj_mean_force = np.mean(traj_data[:, 40:, :])
+    traj_std_force = np.std(traj_data[:, 40:, :])
+    traj_data[:, 40:, :] = traj_data[:, 40:, :] - traj_mean_force
+    traj_data[:, 40:, :] = traj_data[:, 40:, :] / traj_std_force
 
-    X_min = np.min(X)
-    X = X - X_min
-    X_max = np.max(X)
-    X = X / X_max
+    X_mean = np.mean(X)
+    X_std = np.std(X)
+    X = X - np.mean(X)
+    X = X / np.std(X)
 
-    y_min = np.min(y)
-    y = y - y_min
-    y_max = np.max(y)
-    y = y / y_max
+    y_mean = np.mean(y)
+    y_std = np.std(y)
+    y = y - y_mean
+    y = y / y_std
 
     # print(traj_mean_pos, traj_std_pos, traj_mean_force, traj_std_force, X_mean, X_std, y_mean, y_std)
 
     return X, traj_data, y
 
-def train_lstm(include_force, include_pos, lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size):
+def train_cnn(include_force, include_pos, mlp_num_layers, mlp_hidden_size):
     # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     device = "cpu" 
 
     if include_force and include_pos:
-        save_file_name = "alldata_" + str(lstm_num_layers) + "_" + str(lstm_hidden_size) + "_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
+        save_file_name = "cnn_alldata_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
     elif not include_force:
-        save_file_name = "noforce_" + str(lstm_num_layers) + "_" + str(lstm_hidden_size) + "_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
+        save_file_name = "cnn_noforce_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
     elif not include_pos:
-        save_file_name = "nopose_" + str(lstm_num_layers) + "_" + str(lstm_hidden_size) + "_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
+        save_file_name = "cnn_nopose_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
 
     input_dim = 42
     if not include_force:
