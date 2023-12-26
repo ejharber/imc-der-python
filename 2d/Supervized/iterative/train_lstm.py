@@ -143,3 +143,15 @@ include_force = True
 lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size = 2, 100, 4, 512
 
 train_lstm(include_force, include_pos, lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size)
+
+include_pos = False
+include_force = True
+lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size = 2, 100, 4, 512
+
+train_lstm(include_force, include_pos, lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size)
+
+include_pos = True
+include_force = False
+lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size = 2, 100, 4, 512
+
+train_lstm(include_force, include_pos, lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size)
