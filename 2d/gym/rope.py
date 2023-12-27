@@ -182,7 +182,7 @@ class RopePython(object):
             self.EI = 1e-2*np.random.uniform(.95, 1.05) # should replace this with an array LATER
             self.EA = 1e7*np.random.uniform(.95, 1.05) # should replace this with an array LATER
             self.damp = 0.15*np.random.uniform(.95, 1.05)
-            self.m = 0.4*np.random.uniform(.95, 1.05) # should replace this with an array LATER
+            self.m = 0.2*np.random.uniform(.95, 1.05) # should replace this with an array LATER
 
         x = np.zeros((self.N, 2))
         for c in range(self.N):
@@ -415,7 +415,7 @@ class RopePython(object):
             self.save_render = []
             self.save_render.append(image)
 
-        print(image.shape)
+        # print(image.shape)
         # now you have a numpy array representing the rendered image
         # print(image.shape)  # (height, width, channels)
 

@@ -62,8 +62,8 @@ def load_data():
     return X, traj_data, y
 
 def train_cnn(include_force, include_pos, mlp_num_layers, mlp_hidden_size):
-    # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    device = "cpu" 
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # device = "cpu" 
 
     if include_force and include_pos:
         save_file_name = "cnn_alldata_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
@@ -86,17 +86,17 @@ def train_cnn(include_force, include_pos, mlp_num_layers, mlp_hidden_size):
     # begin training
     print(X.shape, traj_data.shape, y.shape)
 
-    X = torch.from_numpy(X.astype(np.float32)).to(device)
-    traj_data = torch.from_numpy(traj_data.astype(np.float32)).to(device)
-    y = torch.from_numpy(y.astype(np.float32)).to(device)
-
     rand_i = np.linspace(0, X.shape[0] - 1, X.shape[0], dtype = int)
     np.random.shuffle(rand_i)
-    split = X.shape[0] * 2 // 3
+    split = X.shape[0] * 5 // 6
 
     X_train, X_test = X[rand_i[:split], :], X[rand_i[split:], :]
     traj_data_train, traj_data_test = traj_data[rand_i[:split], :, :], traj_data[rand_i[split:], :, :]
     y_train, y_test = y[rand_i[:split], :], y[rand_i[split:], :]
+
+    traj_data_test = torch.from_numpy(traj_data_test.astype(np.float32)).to(device)
+    X_test = torch.from_numpy(X_test.astype(np.float32)).to(device)
+    y_test = torch.from_numpy(y_test.astype(np.float32)).to(device)    
 
     model = LSTM(input_dim, lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size, train = True)
     model.to(device)
@@ -114,15 +114,16 @@ def train_cnn(include_force, include_pos, mlp_num_layers, mlp_hidden_size):
         for batch in np.linspace(0, X_train.shape[0], 10, endpoint=False, dtype=np.int32):
             if batch == 0: continue 
 
-            # print(batch)
+            traj_data_train_batched = torch.from_numpy(traj_data_train[last:batch, :, :].astype(np.float32)).to(device)
+            X_train_batched = torch.from_numpy(X_train[last:batch, :].astype(np.float32)).to(device)
+            y_train_batched = torch.from_numpy(y_train[last:batch, :].astype(np.float32)).to(device)
 
-            # print("training", X_train.shape)
             # zero the parameter gradients
             optimizer.zero_grad()
             
             # forward + backward + optimize
-            pred = model(traj_data_train[last:batch, :, :], X_train[last:batch, :])
-            loss = loss_fn(pred, y_train[last:batch, :])
+            pred = model(traj_data_train_batched, X_train_batched)
+            loss = loss_fn(pred, y_train_batched)
             loss_values_train.append(loss.item())
             # print(loss.item())
             loss.backward()

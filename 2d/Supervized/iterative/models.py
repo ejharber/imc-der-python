@@ -2,20 +2,30 @@ import torch
 from torch import nn
 import numpy as np
 
-class LSTM(nn.Module):
-    def __init__(self, input_dim, lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size, train):
-        super(LSTM, self).__init__()
+class LSTM_iter(nn.Module):
+    def __init__(self, include_force, include_pos, lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size, train):
+        super(LSTM_iter, self).__init__()
         self.lstm_num_layers = lstm_num_layers
         self.lstm_hidden_size = lstm_hidden_size
         self.mlp_num_layers = mlp_num_layers
         self.mlp_hidden_size = mlp_hidden_size
 
+        self.include_force = include_force 
+        self.include_pos = include_pos
+
+        assert self.include_force or self.include_pos
+
+        self.input_dim = 42
+        if not self.include_force:
+            self.input_dim = 40
+        if not self.include_pos:
+            self.input_dim = 2 
+
         self.train = train
 
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=self.lstm_hidden_size, num_layers=self.lstm_num_layers, batch_first=self.train)
+        self.lstm = nn.LSTM(input_size=self.input_dim, hidden_size=self.lstm_hidden_size, num_layers=self.lstm_num_layers, batch_first=self.train)
 
-        # The linear layer that maps from hidden state space to tag space
-        self.mlp = []
+        self.mlp = nn.ModuleList()
 
         for i in range(self.mlp_num_layers):
             input_size = self.mlp_hidden_size
@@ -32,9 +42,16 @@ class LSTM(nn.Module):
 
     def forward(self, obs, delta_action):
 
+        if not self.include_force:
+            obs = obs[:, :40, :]
+
+        if not self.include_pos:
+            obs = obs[:, 40:, :]
+
         obs = obs.permute(0, 2, 1) 
-        h0 = torch.zeros(self.lstm_num_layers, obs.size(0), self.lstm_hidden_size).to('cpu') 
-        c0 = torch.zeros(self.lstm_num_layers, obs.size(0), self.lstm_hidden_size).to('cpu')
+
+        h0 = torch.zeros(self.lstm_num_layers, obs.size(0), self.lstm_hidden_size)
+        c0 = torch.zeros(self.lstm_num_layers, obs.size(0), self.lstm_hidden_size)
 
         lstm_out, _ = self.lstm(obs, (h0, c0))
       
@@ -47,10 +64,70 @@ class LSTM(nn.Module):
             mlp_out = self.mlp[i](mlp_in)
             mlp_in = nn.functional.relu(mlp_out) # we don't want to apply relu on the last layers
 
-        # print(mlp_out, mlp_in)
-
         return mlp_out
 
+class RNN_iter(nn.Module):
+    def __init__(self, include_force, include_pos, rnn_num_layers, rnn_hidden_size, mlp_num_layers, mlp_hidden_size, train):
+        super(RNN_iter, self).__init__()
+        self.rnn_num_layers = rnn_num_layers
+        self.rnn_hidden_size = rnn_hidden_size
+        self.mlp_num_layers = mlp_num_layers
+        self.mlp_hidden_size = mlp_hidden_size
+
+        self.include_force = include_force 
+        self.include_pos = include_pos
+
+        assert self.include_force or self.include_pos
+
+        self.input_dim = 42
+        if not self.include_force:
+            self.input_dim = 40
+        if not self.include_pos:
+            self.input_dim = 2 
+
+        self.train = train
+
+        self.rnn = nn.RNN(input_size=self.input_dim, hidden_size=self.rnn_hidden_size, num_layers=self.rnn_num_layers, batch_first=self.train)
+
+        self.mlp = nn.ModuleList()
+
+        for i in range(self.mlp_num_layers):
+            input_size = self.mlp_hidden_size
+            if i == 0:
+                input_size = self.rnn_hidden_size + 3
+
+            output_size = self.mlp_hidden_size
+            if i == self.mlp_num_layers - 1:
+                output_size = 2
+
+            print(input_size, output_size)
+
+            self.mlp.append(nn.Linear(input_size, output_size))
+
+    def forward(self, obs, delta_action):
+
+        if not self.include_force:
+            obs = obs[:, :40, :]
+
+        if not self.include_pos:
+            obs = obs[:, 40:, :]
+
+        obs = obs.permute(0, 2, 1) 
+
+        h0 = torch.zeros(self.rnn_num_layers, obs.size(0), self.rnn_hidden_size)
+
+        rnn_out, _ = self.rnn(obs, h0)
+      
+        if self.train:
+            mlp_in = torch.cat((rnn_out[:, -1, :], delta_action), axis=1)
+        else:
+            mlp_in = torch.cat((rnn_out[-1, :], delta_action), axis=0)
+
+        for i in range(self.mlp_num_layers):
+            mlp_out = self.mlp[i](mlp_in)
+            mlp_in = nn.functional.relu(mlp_out) # we don't want to apply relu on the last layers
+
+        return mlp_out
 
 # class CNN(nn.Module):
 #     def __init__(self, cnn_num_layers, cnn_hidden_size, mlp_num_layers, mlp_hidden_size, train, include_force = True, include_pos = True): 
