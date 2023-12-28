@@ -23,6 +23,19 @@ class LSTM_iter(nn.Module):
 
         self.train = train
 
+        # normalization factors which make testing easier
+        self.X_norm = nn.Linear(3, 3)
+        self.X_norm.weight = nn.Parameter(torch.eye(3), False)
+        self.X_norm.bias = nn.Parameter(torch.zeros(self.X_norm.bias.shape), False)
+
+        self.obs_norm = nn.Linear(42, 42)
+        self.obs_norm.weight = nn.Parameter(torch.eye(42), False)
+        self.obs_norm.bias = nn.Parameter(torch.zeros(self.X_norm.bias.shape), False)
+
+        self.y_norm = nn.Linear(2, 2)
+        self.y_norm.weight = nn.Parameter(torch.eye(2), False)
+        self.y_norm.bias = nn.Parameter(torch.zeros(self.y_norm.bias.shape), False)
+
         self.lstm = nn.LSTM(input_size=self.input_dim, hidden_size=self.lstm_hidden_size, num_layers=self.lstm_num_layers, batch_first=self.train)
 
         self.mlp = nn.ModuleList()
@@ -40,7 +53,25 @@ class LSTM_iter(nn.Module):
 
             self.mlp.append(nn.Linear(input_size, output_size))
 
+    def setNorms(self, X_mean, X_std, obs_mean, obs_std, y_mean, y_std):
+        X_mean = torch.from_numpy(X_mean.astype(np.float32))
+        X_std = torch.from_numpy(X_std.astype(np.float32))
+        obs_mean = torch.from_numpy(obs_mean.astype(np.float32))
+        obs_std = torch.from_numpy(obs_std.astype(np.float32)) 
+        y_mean = torch.from_numpy(y_mean.astype(np.float32))
+        y_std = torch.from_numpy(y_std.astype(np.float32))
+
+        self.X_norm.weight = nn.Parameter(torch.eye(3) * 1/X_std, False)
+        self.X_norm.bias = nn.Parameter(-X_mean/X_std, False)
+        self.obs_norm.weight = nn.Parameter(torch.eye(3) * 1/obs_std, False)
+        self.obs_norm.bias = nn.Parameter(-obs_mean/obs_std, False)
+        self.y_norm.weight = nn.Parameter(torch.eye(2) * y_std, False)
+        self.y_norm.bias = nn.Parameter(y_mean, False)
+
     def forward(self, obs, delta_action):
+
+        if not self.train:
+            obs = self.obs_norm(obs)
 
         if not self.include_force:
             obs = obs[:, :40, :]
@@ -55,14 +86,17 @@ class LSTM_iter(nn.Module):
 
         lstm_out, _ = self.lstm(obs, (h0, c0))
       
-        if self.train:
-            mlp_in = torch.cat((lstm_out[:, -1, :], delta_action), axis=1)
-        else:
-            mlp_in = torch.cat((lstm_out[-1, :], delta_action), axis=0)
+        mlp_in = torch.cat((lstm_out[:, -1, :], delta_action), axis=1)
+
+        if not self.train:
+            mlp_in = self.X_norm(mlp_in)
 
         for i in range(self.mlp_num_layers):
             mlp_out = self.mlp[i](mlp_in)
             mlp_in = nn.functional.relu(mlp_out) # we don't want to apply relu on the last layers
+
+        if not self.train:
+            mlp_out = self.y_norm(mlp_out)
 
         return mlp_out
 

@@ -9,9 +9,13 @@ from torch import nn
 from torch import optim
 from models import *
 
+import sys
+sys.path.append("../zero_shot/")
+from model import MLP_zeroshot
+
 def load_data():
     file = "rope_motion_m=0_2.npz"
-    data = np.load('data/' + file)
+    data = np.load('../data/' + file)
 
     # collect data
     X_0 = data["actions_1"]
@@ -21,10 +25,17 @@ def load_data():
     obs = np.empty((0, 42, 101))
     y = np.empty((0, 2))
 
+    model = MLP_zeroshot(mlp_num_layers=3, mlp_hidden_size=500, train=False)
+    model.load_state_dict(torch.load("../zero_shot/models/MLPZS_3_500.pkg", map_location=torch.device('cpu')))
+
     for i in range(5, 10):
         X_ = data["actions_" + str(i)] - X_0 # delta action 
         obs_pos_, obs_force_ = data["traj_pos_" + str(i-1)], data["traj_force_" + str(i-1)]
-        y_ = data["traj_pos_" + str(i)][:,-2:,-1] - y_0 # delta goal 
+
+        action_new = torch.from_numpy(data["actions_" + str(i)].astype(np.float32))
+        action_prev = torch.from_numpy(X_0.astype(np.float32))
+
+        y_ = (data["traj_pos_" + str(i)][:,-2:,-1] - y_0) - (model.forward(action_new).detach().numpy() - model.forward(action_prev).detach().numpy())# correction factor = difference between 
 
         obs_ = np.append(obs_pos_, obs_force_, axis = 1)
 
@@ -33,31 +44,8 @@ def load_data():
         y = np.append(y, y_, axis = 0)
 
     # add artifical noise (similar to that as we would expect from the sensors)
-    obs[:, :40, :] = np.random.normal(obs[:, :40, :], 0.003, obs[:, :40, :].shape) # artificial mocap noise added
-    obs[:, 40:, :] = np.random.normal(obs[:, 40:, :], 0.15, obs[:, 40:, :].shape) # artificial force sensor noise added
-
-    # normalize data
-    X_min = np.min(X)
-    X = X - X_min
-    X_max = np.max(X)
-    X = X / X_max
-
-    obs_min_pos = np.min(obs[:, :40, :])
-    obs[:, :40, :] = obs[:, :40, :] - obs_min_pos
-    obs_max_pos = np.max(obs[:, :40, :])
-    obs[:, :40, :] = obs[:, :40, :] / obs_max_pos
-
-    obs_min_force = np.min(obs[:, 40:, :])
-    obs[:, 40:, :] = obs[:, 40:, :] - obs_min_force
-    obs_max_force = np.max(obs[:, 40:, :])
-    obs[:, 40:, :] = obs[:, 40:, :] / obs_max_force
-
-    y_min = np.min(y)
-    y = y - y_min
-    y_max = np.max(y)
-    y = y / y_max
-
-    print(X_min, X_max, obs_min_pos, obs_max_pos, obs_min_force, obs_max_force, y_min, y_max)
+    # obs[:, :40, :] = np.random.normal(obs[:, :40, :], 0.003, obs[:, :40, :].shape) # artificial mocap noise added
+    # obs[:, 40:, :] = np.random.normal(obs[:, 40:, :], 0.15, obs[:, 40:, :].shape) # artificial force sensor noise added
 
     return X, obs, y
 
@@ -156,14 +144,14 @@ for num_layers in [1, 2, 3, 4]:
         for mlp_num_layers in [2, 3, 4, 5]:
             for mlp_hidden_size in [10, 50, 100, 500, 1000]:
 
-                try:
-                    train_lstm(include_force = True, include_pos = True, lstm_num_layers = num_layers, lstm_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
-                    train_lstm(include_force = True, include_pos = False, lstm_num_layers = num_layers, lstm_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
-                    train_lstm(include_force = False, include_pos = True, lstm_num_layers = num_layers, lstm_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
-                    train_rnn(include_force = True, include_pos = True, rnn_num_layers = num_layers, rnn_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
-                    train_rnn(include_force = True, include_pos = False, rnn_num_layers = num_layers, rnn_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
-                    train_rnn(include_force = False, include_pos = True, rnn_num_layers = num_layers, rnn_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
-                except: pass
+                # try:
+                train_lstm(include_force = True, include_pos = True, lstm_num_layers = num_layers, lstm_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
+                train_lstm(include_force = True, include_pos = False, lstm_num_layers = num_layers, lstm_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
+                train_lstm(include_force = False, include_pos = True, lstm_num_layers = num_layers, lstm_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
+                train_rnn(include_force = True, include_pos = True, rnn_num_layers = num_layers, rnn_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
+                train_rnn(include_force = True, include_pos = False, rnn_num_layers = num_layers, rnn_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
+                train_rnn(include_force = False, include_pos = True, rnn_num_layers = num_layers, rnn_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
+                # except: pass
 
 #                 include_pos = True
 #                 include_force = True

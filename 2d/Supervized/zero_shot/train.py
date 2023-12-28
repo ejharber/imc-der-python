@@ -7,127 +7,105 @@ import torch
 from torch.utils.data import Dataset, DataLoader 
 from torch import nn
 from torch import optim
-from model import NeuralNetwork
-import os 
+from model import *
 
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+def load_data():
+    file = "rope_motion_m=0_2.npz"
+    data = np.load('../data/' + file)
 
-# Assuming that we are on a CUDA machine, this should print a CUDA device:
+    # collect data
+    X = np.empty((0, 3))
+    y = np.empty((0, 2))
 
-X = np.array([])
-y = np.array([])
+    for i in range(1, 10):
+        X_ = data["actions_" + str(i)] # action 
+        y_ = data["traj_pos_" + str(i)][:,-2:,-1] # tip pose 
 
-for file in os.listdir("data"):
-    print(file)
-    try:
-        data = np.load("data/" + file, allow_pickle=True)
-    except:
-        continue 
+        X = np.append(X, X_, axis = 0)
+        y = np.append(y, y_, axis = 0)
 
-    # print(X.shape)
-    if len(X.shape) == 1:
-        X = data["actions"]
-        y = np.array(data["trajs_pos"])[:,-2:,-1]
+    return X, y
 
-    else:
-        X = np.append(X, data["actions"], axis=0)
-        y = np.append(y, data["trajs_pos"][:,-2:,-1], axis=0)
+def train_zeroshot(mlp_num_layers, mlp_hidden_size):
 
-    if X.shape[0] > 1_000_000:
-        break
+    save_file_name = "MLPZS_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
+ 
+    model = MLP_zeroshot(mlp_num_layers, mlp_hidden_size)
 
-success = []
-print(X.shape, y.shape)
-for i in range(y.shape[0]):
-    if not np.all(y[i, :] == 0):
-        success.append(i)
+    train(model, save_file_name)
 
-X = X[success, :]
-y = y[success, :]
+def train(model, save_file_name):
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.33, random_state=26)
+    print("start training")
 
-class Data(Dataset):
-    def __init__(self, X, y):
-        self.X = torch.from_numpy(X.astype(np.float32))
-        self.X = self.X.to(device)
-        self.y = torch.from_numpy(y.astype(np.float32))
-        self.y = self.y.to(device)
-        self.len = self.X.shape[0]
-        
-    def __getitem__(self, index):
-        return self.X[index], self.y[index]
-    
-    def __len__(self): 
-        return self.len
-    
-batch_size = 64*64*64*32
+    X, y = load_data()
 
-# Instantiate training and test data
-train_data = Data(X_train, y_train)
-train_dataloader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True)
+    # normalize data
+    X_mean = np.mean(X, axis = 0)
+    X = X - X_mean
+    X_std = np.std(X, axis = 0)
+    X = X / X_std
 
-test_data = Data(X_test, y_test)
-test_dataloader = DataLoader(dataset=test_data, batch_size=batch_size, shuffle=True)
+    y_mean = np.mean(y, axis = 0)
+    y = y - y_mean
+    y_std = np.std(y, axis = 0)
+    y = y / y_std
 
-# Check it's working
-for batch, (X, y) in enumerate(train_dataloader):
-    print(f"Batch: {batch+1}")
-    print(f"X shape: {X.shape}")
-    print(f"y shape: {y.shape}")
-    # break
+    model.setNorms(X_mean, X_std, y_mean, y_std) # save these for evaluation 
 
-input_dim = 3
-hidden_dim = 128 // 2
-output_dim = 2
-        
-model = NeuralNetwork(input_dim, hidden_dim, output_dim)
-model.to(device)
+    rand_i = np.linspace(0, X.shape[0] - 1, X.shape[0], dtype = int)
+    np.random.shuffle(rand_i)
+    split = X.shape[0] * 5 // 6
 
-print(model)
+    X_train, X_test = X[rand_i[:split], :], X[rand_i[split:], :]
+    y_train, y_test = y[rand_i[:split], :], y[rand_i[split:], :]
 
-learning_rate = 0.05
-loss_fn = nn.MSELoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+    X_train = torch.from_numpy(X_train.astype(np.float32))
+    y_train = torch.from_numpy(y_train.astype(np.float32))
 
-num_epochs = 100000
-loss_values_train = []
-loss_values_test = []
-for epoch in range(num_epochs):
-    for X, y in train_dataloader: 
-        # zero the parameter gradients
-        optimizer.zero_grad()
-        
-        # forward + backward + optimize
-        pred = model(X)
-        loss = loss_fn(pred, y)
-        loss_values_train.append(loss.item())
-        loss.backward()
-        optimizer.step()
+    X_test = torch.from_numpy(X_test.astype(np.float32))
+    y_test = torch.from_numpy(y_test.astype(np.float32))
 
-    for X, y in test_dataloader:
-        pred = model(X)
-        loss = loss_fn(pred, y)
+    learning_rate = 0.05
+    loss_fn = nn.MSELoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+
+    num_epochs = 10000
+    loss_values_train = []
+    loss_values_test = []
+    for epoch in range(num_epochs):
+
+        last = 0
+        for batch in np.linspace(0, X_train.shape[0], 10, endpoint=False, dtype=np.int32):
+            if batch == 0: continue 
+
+            X_train_batched = X_train[last:batch, :]
+            y_train_batched = y_train[last:batch, :]
+
+            # zero the parameter gradients
+            optimizer.zero_grad()
+            
+            # forward + backward + optimize
+            pred = model(X_train_batched)
+            loss = loss_fn(pred, y_train_batched)
+            loss_values_train.append(loss.item())
+            loss.backward()
+            optimizer.step()
+
+            last = batch
+
+        pred = model(X_test)
+        loss = loss_fn(pred, y_test)
         loss_values_test.append(loss.item())
-        print(epoch, loss)
 
-torch.save(model.state_dict(), "model_params/64_64")
+        print(epoch, loss_values_test[-1], loss_values_train[-1])
 
-print("Training Complete")
+    np.savez("models/" + save_file_name, loss_values_test = loss_values_test, loss_values_train = loss_values_train)
+    torch.save(model.state_dict(), "models/" + save_file_name + '.pkg')
 
-step = np.linspace(0, num_epochs, len(np.array(loss_values_train)))
+for mlp_num_layers in [1, 2, 3, 4, 5]:
+    for mlp_hidden_size in [10, 50, 100, 500, 1000]:
+        train_zeroshot(mlp_num_layers, mlp_hidden_size)
 
-fig, ax = plt.subplots(figsize=(8,5))
-plt.plot(step, np.array(loss_values_train))
-plt.title("Step-wise Loss")
-plt.xlabel("Epochs")
-plt.ylabel("Loss")
-
-plt.figure()
-plt.plot(loss_values_test)
-plt.title("Step-wise Loss")
-plt.xlabel("Epochs")
-plt.ylabel("Loss")
-
-plt.show()
-
+        if mlp_num_layers == 1:
+            break 
