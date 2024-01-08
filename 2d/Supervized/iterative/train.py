@@ -85,6 +85,19 @@ def train_rnn(include_force, include_pos, rnn_num_layers, rnn_hidden_size, mlp_n
 
     train(model, save_file_name)
 
+def train_cnn(include_force, include_pos, mlp_num_layers, mlp_hidden_size):
+
+    if include_force and include_pos:
+        save_file_name = "CNN_" + "alldata_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
+    elif not include_force:
+        save_file_name = "CNN_" + "noforce_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
+    elif not include_pos:
+        save_file_name = "CNN_" + "nopose_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
+
+    model = CNN_widden_iter(include_force, include_pos, mlp_num_layers, mlp_hidden_size)
+
+    train(model, save_file_name)
+
 def train(model, save_file_name):
 
     print("start training")
@@ -192,7 +205,9 @@ def train(model, save_file_name):
     np.savez("models_daction_dgoal/" + save_file_name, loss_values_test = loss_values_test, loss_values_test_ = loss_values_test_, loss_values_train = loss_values_train)
     torch.save(model.state_dict(), "models_daction_dgoal/" + save_file_name + '.pkg')
 
-train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 50, mlp_num_layers = 3, mlp_hidden_size = 500)
+# train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 50, mlp_num_layers = 3, mlp_hidden_size = 500)
+train_cnn(include_force = True, include_pos = True, mlp_num_layers = 3, mlp_hidden_size = 500)
+
 # train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 20, mlp_num_layers = 3, mlp_hidden_size = 200)
 # train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 100, mlp_num_layers = 3, mlp_hidden_size = 1000)
 # train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 100, mlp_num_layers = 4, mlp_hidden_size = 1000)
