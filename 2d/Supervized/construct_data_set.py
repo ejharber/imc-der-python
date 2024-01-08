@@ -1,5 +1,5 @@
 import sys
-sys.path.append("../../gym/")
+sys.path.append("../gym/")
 
 from rope_gym import RopeEnv
 import numpy as np 
@@ -7,7 +7,7 @@ import multiprocessing as mp
 from multiprocessing import Process
 
 def construct_data(offset = 0):
-    env = RopeEnv(True)
+    env = RopeEnv(True, "Both")
 
     actions_0 = []
     traj_pos_0 = []
@@ -49,6 +49,14 @@ def construct_data(offset = 0):
     traj_pos_9 = []
     traj_force_9 = []
 
+    actions_10 = []
+    traj_pos_10 = []
+    traj_force_10 = []
+
+    actions_11 = []
+    traj_pos_11 = []
+    traj_force_11 = []
+
     seeds = []
 
     print(offset)
@@ -57,7 +65,7 @@ def construct_data(offset = 0):
 
         print(offset, i)
 
-        observation_state_0 = env.reset(seed = i + offset)
+        observation_state_0 = env.reset(i + offset)
         if np.all(observation_state_0["pos_traj"] == 0): continue 
 
         action = env.action_space.sample() # sample original action
@@ -88,6 +96,12 @@ def construct_data(offset = 0):
 
         observation_state_9, _, _, _ = env.step(action + env.action_space.sample() / 1000)
         if np.all(observation_state_9["pos_traj"] == 0): continue  
+
+        observation_state_10, _, _, _ = env.step(action + env.action_space.sample() / 2000)
+        if np.all(observation_state_10["pos_traj"] == 0): continue  
+
+        observation_state_11, _, _, _ = env.step(action + env.action_space.sample() / 5000)
+        if np.all(observation_state_11["pos_traj"] == 0): continue  
 
         actions_0.append(observation_state_0["action"])
         traj_pos_0.append(observation_state_0["pos_traj"])
@@ -129,6 +143,14 @@ def construct_data(offset = 0):
         traj_pos_9.append(observation_state_9["pos_traj"])
         traj_force_9.append(observation_state_9["force_traj"])
 
+        actions_10.append(observation_state_10["action"])
+        traj_pos_10.append(observation_state_10["pos_traj"])
+        traj_force_10.append(observation_state_10["force_traj"])
+
+        actions_11.append(observation_state_11["action"])
+        traj_pos_11.append(observation_state_11["pos_traj"])
+        traj_force_11.append(observation_state_11["force_traj"])
+
         seeds.append(i + offset)
 
     np.savez("data/rope_motion_noise_" + str(offset), actions_0=actions_0, traj_pos_0=traj_pos_0, traj_force_0=traj_force_0,
@@ -141,13 +163,17 @@ def construct_data(offset = 0):
                                                       actions_7=actions_7, traj_pos_7=traj_pos_7, traj_force_7=traj_force_7,
                                                       actions_8=actions_8, traj_pos_8=traj_pos_8, traj_force_8=traj_force_8,
                                                       actions_9=actions_9, traj_pos_9=traj_pos_9, traj_force_9=traj_force_9,
+                                                      actions_10=actions_10, traj_pos_10=traj_pos_10, traj_force_10=traj_force_10,
+                                                      actions_11=actions_11, traj_pos_11=traj_pos_11, traj_force_11=traj_force_11,
                                                       seeds=seeds)
 
-pool = mp.Pool(processes = 1)
+# pool = mp.Pool(processes = 1)
 
-args = []
+# args = []
 
-for i in range(12*5):
-    args.append(10_000 * i)
+# for i in range(12*5):
+    # args.append(10_000 * i)
 
-pool.map(construct_data, args)
+# pool.map(construct_data, args)
+
+construct_data()

@@ -105,7 +105,8 @@ def train(model, save_file_name):
 
 for mlp_num_layers in [1, 2, 3, 4, 5]:
     for mlp_hidden_size in [10, 50, 100, 500, 1000]:
-        train_zeroshot(mlp_num_layers, mlp_hidden_size)
+        train_zeroshot(mlp_num_layers = 5, mlp_hidden_size=1000)
+        exit()
 
         if mlp_num_layers == 1:
             break 

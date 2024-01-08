@@ -10,14 +10,15 @@ from torch import nn
 import matplotlib.pyplot as plt
 from model import *
 
-model = MLP_zeroshot(mlp_num_layers=3, mlp_hidden_size=500, train=False)
-model.load_state_dict(torch.load("models/MLPZS_3_500.pkg", map_location=torch.device('cpu')))
+model_name = "MLPZS_5_1000"
+model = MLP_zeroshot(mlp_num_layers=5, mlp_hidden_size=1000, train=False)
+model.load_state_dict(torch.load("models/MLPZS_5_1000.pkg", map_location=torch.device('cpu')))
 
-env = RopeEnv(True, "Human")
+env = RopeEnv(True)
 obs = env.reset()
 env.step(np.array([0,0,0]))
 
-X = np.random.rand(3, 100_000)
+X = np.random.rand(3, 10_000)
 X[:2, :] = X[:2, :] * (env.high - env.low) - env.high
 X[2, :] = X[2, :] * 2 * np.pi - np.pi
 X = X.T
@@ -27,13 +28,13 @@ y = model(X).detach().numpy()
 
 MSE = []
 
-for trials in range(10):
+for trial in range(1000):
 
     print('new trial')
 
     mse = []
 
-    obs = env.reset()
+    obs = env.reset(seed = trial)
 
     goal = env.goal
     i = np.argmin(np.linalg.norm(goal - y, axis = 1))
@@ -64,12 +65,11 @@ for trials in range(10):
     MSE.append(mse)
 
 MSE = np.array(MSE)
-np.save('mse', MSE)
+np.save("analysis/" + model_name + "_iterresults", MSE)
 
 print(MSE.T)
 plt.figure()
 plt.plot(MSE.T)
 plt.show()
 
-np.save('mse', MSE)
 env.close()

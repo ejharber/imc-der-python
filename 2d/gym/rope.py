@@ -336,7 +336,7 @@ class RopePython(object):
                 
                 self.circles = []
 
-                time_samples = np.linspace(0, self.traj_pos.shape[1]-1, 10, dtype=np.int)
+                time_samples = np.linspace(0, self.traj_pos.shape[1]-1, 10, dtype=np.int32)
                 sub_traj_x = self.traj_pos[0::2, time_samples]
                 sub_traj_y = self.traj_pos[1::2, time_samples]
 
@@ -380,7 +380,7 @@ class RopePython(object):
 
             else:            
 
-                time_samples = np.linspace(0, self.traj_pos.shape[1]-1, 10, dtype=np.int)
+                time_samples = np.linspace(0, self.traj_pos.shape[1]-1, 10, dtype=np.int32)
                 sub_traj_x = self.traj_pos[0::2, time_samples]
                 sub_traj_y = self.traj_pos[1::2, time_samples]
                 circle_count = 0
