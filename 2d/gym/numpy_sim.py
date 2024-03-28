@@ -12,14 +12,14 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj
     # Initial velocity
     # u0 = np.atleast_2d(u0)
     u0 = np.array([u0]).T
-    try:
-        return _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u)
+    # try:
+    return _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u)
 
-    except:
-        return [], [], [], False
+    # except:
+        # return [], [], [], False
 
 
-@jit(nopython=True, cache=True, boundscheck=False)
+@jit(cache=True)
 def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u):
 
     ## Mass matrix
@@ -78,6 +78,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, tra
             iteration += 1
             if iteration >= max_iteration:
                 print("max iter reached")
+                print(err)
                 return f_save, q_save, u_save, False
 
             # Inertia
@@ -157,7 +158,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, tra
     # print()
     return f_save, q_save, u_save, True
 
-@jit(nopython=True, cache=True, boundscheck=False)
+@jit(cache=True)
 def cross_mat(a):
     """
     cross-matrix for derivative calculation
@@ -170,7 +171,7 @@ def cross_mat(a):
     return np.array(c)
 
 
-@jit(nopython=True, cache=True, boundscheck=False)
+@jit(cache=True)
 def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     """
     This function returns the derivative of bending energy E_k^b with respect
@@ -217,6 +218,9 @@ def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     kb = 2.0 * np.cross(te.flatten(), tf.flatten()) / (1.0 + np.dot(te.flatten(), tf.flatten()))
 
     chi = 1.0 + np.dot(te.flatten(), tf.flatten())
+    # print(chi)
+    chi = max(1e-4, chi)
+
     tilde_t = (te + tf) / chi
     tilde_d2 = (m2e + m2f) / chi
 
@@ -237,7 +241,7 @@ def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     return dF
 
 
-@jit(nopython=True, cache=True, boundscheck=False)
+@jit(cache=True)
 def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     """
     This function returns the derivative of bending energy E_k^b with respect
@@ -284,6 +288,8 @@ def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     kb = 2.0 * np.cross(te.flatten(), tf.flatten()) / (1.0 + np.dot(te.flatten(), tf.flatten()))
 
     chi = 1.0 + np.dot(te.flatten(), tf.flatten())
+    chi = max(1e-4, chi)
+
     tilde_t = (te + tf) / chi
     tilde_d2 = (m2e + m2f) / chi
 
@@ -353,7 +359,7 @@ def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     return dJ
 
 
-@jit(nopython=True, cache=True, boundscheck=False)
+@jit(cache=True)
 def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
     """
     This function returns the derivative of stretching energy E_k^s with
@@ -383,7 +389,7 @@ def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
     return F
 
 
-@jit(nopython=True, cache=True, boundscheck=False)
+@jit(cache=True)
 def hess_es(xk, yk, xkp1, ykp1, l_k, EA):
     """
     This function returns the 4x4 hessian of the stretching energy E_k^s with

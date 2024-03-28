@@ -161,11 +161,11 @@ def train(model, save_file_name):
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
-    num_epochs = 5000
+    num_epochs = 500
     loss_values_train = []
     loss_values_test = []
     loss_values_test_ = []
-    for epoch in range(num_epochs):
+    for epoch in range(1, num_epochs + 1):
 
         last = 0
         for batch in np.linspace(0, X_train.shape[0], 10, endpoint=False, dtype=np.int32):
@@ -206,16 +206,22 @@ def train(model, save_file_name):
     torch.save(model.state_dict(), "models_daction_dgoal/" + save_file_name + '.pkg')
 
 # train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 50, mlp_num_layers = 3, mlp_hidden_size = 500)
-train_cnn(include_force = True, include_pos = True, mlp_num_layers = 3, mlp_hidden_size = 500)
+# train_cnn(include_force = True, include_pos = True, mlp_num_layers = 3, mlp_hidden_size = 500)
 
 # train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 20, mlp_num_layers = 3, mlp_hidden_size = 200)
 # train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 100, mlp_num_layers = 3, mlp_hidden_size = 1000)
 # train_lstm(include_force = True, include_pos = True, lstm_num_layers = 2, lstm_hidden_size = 100, mlp_num_layers = 4, mlp_hidden_size = 1000)
 
-# for num_layers in [1, 2, 3, 4]:
-#     for hidden_size in [10, 20, 50, 100, 200]:
-#         for mlp_num_layers in [2, 3, 4, 5]:
-#             for mlp_hidden_size in [10, 50, 100, 500, 1000]:
+count = 0
+for lstm_num_layers in [2, 3, 4]:
+    for lstm_hidden_size in [10, 20, 50, 100, 200]:
+        for mlp_num_layers in [2, 3, 4, 5]:
+            for mlp_hidden_size in [10, 50, 100, 500, 1000]:
+                count += 1
+                print(lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size)
+                # if count < 100- 34:
+                #     continue 
+                train_lstm(True, True, lstm_num_layers, lstm_hidden_size, mlp_num_layers, mlp_hidden_size)
 
 #                 # try:
 #                 train_lstm(include_force = True, include_pos = True, lstm_num_layers = num_layers, lstm_hidden_size = hidden_size, mlp_num_layers = mlp_num_layers, mlp_hidden_size = mlp_hidden_size)
