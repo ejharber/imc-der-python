@@ -1,5 +1,8 @@
 from pendulum import *
 
+from scipy.stats import wasserstein_distance
+from scipy.stats import skewnorm
+
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -94,7 +97,7 @@ for i in range(len(min_x_std)):
         # std = np.zeros(3)
         # std = min_x_std[i]
         min_x_sample = np.copy(min_x)
-        min_x_sample[i] = np.random.lognormal(min_x[i], min_x_std[i])
+        min_x_sample[i] = np.random.normal(min_x[i], min_x_std[i])
 
         print(min_x, min_x_sample)
         # min_x_sample = np.copy(min_x) + stds

@@ -51,6 +51,7 @@ goal_std = goal_std[0]
 # print(mean, goal_std)
 
 # exit()
+    # samples[index, :] = np.random.normal(min_x[index], std, n)
 
 def monteCarloSample(min_x, index = 0, std = 0.01, n = 100):
 
@@ -58,7 +59,8 @@ def monteCarloSample(min_x, index = 0, std = 0.01, n = 100):
     samples[0, :] *= min_x[0]
     samples[1, :] *= min_x[1]
     samples[2, :] *= min_x[2]
-    samples[index, :] = np.random.normal(min_x[index], std, n)
+    # samples[index, :] = np.random.normal(min_x[index], std, n)
+    samples[index, :] = np.random.lognorm(min_x[index], std, n)
     I = np.where(samples[index, :] < 1e-4)
     samples[index, I[0]] = 1e-4
     # print(I[0])
@@ -145,4 +147,4 @@ print(out_2.x)
 
 print("The Length of the pendulum (L) is: " + str(round(out.x[0], 3)) + ' ± ' + str(round(out_0.x[0], 3)) + '\n' + 
       "The dampening of the pendulum (b) is: " + str(round(out.x[1], 3)) + ' ± ' + str(round(out_1.x[0], 3)) + '\n' + 
-      "The mass of the pendulum (m) is: " + str(round(out.x[2], 3)) + '± ' + str(round(out_2.x[0], 3)))
+      "The mass of the pendulum (m) is: " + str(round(out.x[2], 3)) + ' ± ' + str(round(out_2.x[0], 3)))

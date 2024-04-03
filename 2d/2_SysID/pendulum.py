@@ -14,12 +14,12 @@ sns.set_theme()
 def pendulum_real(L = 1, b = 0.5, m = 1, stdx = 0.05, stdy = 0.05, seed = None):
 	# adds measurment error to a simulated pendulum
 	np.random.seed(seed)
-	x, y = pendulum_sim(L, b, m)
+	x, y, status = pendulum_sim(L, b, m)
 	x = np.random.normal(x, stdx) # measured position of bob
 	y = np.random.normal(y, stdy) # measured position of bob
 	np.random.seed(None)
 
-	return (x, y)
+	return x, y, status
 
 def pendulum_sim(L = 1, b = 0.5, m = 1):
 	# simulates a pendulum's motion
@@ -54,7 +54,7 @@ def pendulum_sim(L = 1, b = 0.5, m = 1):
 	x = L*np.sin(theta1) # actual position of bob (x)
 	y = -L*np.cos(theta1) # actual position of bob (y)
 
-	return (x, y)
+	return x, y, out.status
 
 # tune the model of the pendulum to the real world data by fitting its 3 physics parameters
 def cost_fun(x):
@@ -62,20 +62,42 @@ def cost_fun(x):
 	b = x[1]
 	m = x[2]
 
-	x_measured, y_measured = pendulum_real(seed=0) # measurement with 'real' data
-	x_sim, y_sim = pendulum_sim(L, b, m)
+	x_measured, y_measured, status = pendulum_real(seed=0) # measurement with 'real' data
+	x_sim, y_sim, status = pendulum_sim(L, b, m)
+
+	if not status == 0:
+		return 1e6
+		
+	cost = np.sum(abs(x_sim - x_measured)) + np.sum(abs(y_sim - y_measured))
+
+	return cost
+
+def cost_fun_2(x1, x2):
+	L1 = x1[0]
+	b1 = x1[1]
+	m1 = x1[2]
+
+	L2 = x2[0]
+	b2 = x2[1]
+	m2 = x2[2]
+
+	x_measured, y_measured = pendulum_sim(L1, b1, m1) # measurement with 'real' data
+	x_sim, y_sim = pendulum_sim(L2, b2, m2)
 
 	cost = np.sum(abs(x_sim - x_measured)) + np.sum(abs(y_sim - y_measured))
 
 	return cost
 
-def cost_fun_noise(x, stdx = 0.05, stdy = 0.05):
+def cost_fun_noise(x, stdx = 0.05, stdy = 0.05, seed=None):
 	L = x[0]
 	b = x[1]
 	m = x[2]
 
-	x_measured, y_measured = pendulum_real(seed=0) # measurement with real data
-	x_sim, y_sim = pendulum_real(L, b, m, stdx, stdy, seed=None)
+	x_measured, y_measured, status = pendulum_real(seed=0) # measurement with real data
+	x_sim, y_sim, status = pendulum_real(L, b, m, stdx, stdy, seed=seed)
+
+	if not status == 0:
+		return 1e6
 
 	cost = np.sum(abs(x_sim - x_measured)) + np.sum(abs(y_sim - y_measured))
 
