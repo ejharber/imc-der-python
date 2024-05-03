@@ -2,36 +2,29 @@
 import numpy as np
 from numba import jit
 
-def run_simulation(x0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u = np.zeros((3, 1))):
+def run_simulation(x0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3, traj_u):
     # Initial DOF vector
     # Initial Position
-    # print(x0)
-    # q0 = np.atleast_2d(q0)
     q0 = np.array([x0]).T
 
     # Initial velocity
-    # u0 = np.atleast_2d(u0)
     u0 = np.array([u0]).T
-    # try:
-    return _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u)
+    return _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m1, m2, m3, traj_u)
 
-    # except:
-        # return [], [], [], False
-
-
-@jit(cache=True)
-def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, traj_u):
+@jit(cache=True, nopython=True)
+def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3, traj_u):
 
     ## Mass matrix
     # print(N)
     masses = np.ones((2 * N, 1))
-    masses = masses * m
+    masses[:2, :] = m1 # mass of base
+    masses[2:-2, :] = m2 # mass of rope
+    masses[-2:, :] = m3 # mass of tip
     M = np.diag(masses.flatten())
 
     ## Gravity or weight vector
     W = -masses * g
     W[::2] = 0
-
 
     # indeces for non - constrained motion
     free_bot = 4
@@ -158,7 +151,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m, tra
     # print()
     return f_save, q_save, u_save, True
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def cross_mat(a):
     """
     cross-matrix for derivative calculation
@@ -171,7 +164,7 @@ def cross_mat(a):
     return np.array(c)
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     """
     This function returns the derivative of bending energy E_k^b with respect
@@ -241,7 +234,7 @@ def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     return dF
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     """
     This function returns the derivative of bending energy E_k^b with respect
@@ -359,7 +352,7 @@ def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     return dJ
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
     """
     This function returns the derivative of stretching energy E_k^s with
@@ -389,7 +382,7 @@ def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
     return F
 
 
-@jit(cache=True)
+@jit(cache=True, nopython=True)
 def hess_es(xk, yk, xkp1, ykp1, l_k, EA):
     """
     This function returns the 4x4 hessian of the stretching energy E_k^s with
