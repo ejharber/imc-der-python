@@ -20,7 +20,7 @@ def set_logitech_camera_settings(brightness=100, contrast=100, saturation=100, s
 
     subprocess.run(f"v4l2-ctl -d /dev/video4 -c zoom_absolute=115", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
 
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c auto_exposure=1 -c exposure_time_absolute=250", shell=True)
+    subprocess.run(f"v4l2-ctl -d /dev/video4 -c auto_exposure=1 -c exposure_time_absolute=140", shell=True)
     # subprocess.run(f"v4l2-ctl -d /dev/video4 -c auto_exposure=0 -c exposure_time_absolute=100", shell=True)
 
     subprocess.run(f"v4l2-ctl -d /dev/video4 -c focus_automatic_continuous=0", shell=True)

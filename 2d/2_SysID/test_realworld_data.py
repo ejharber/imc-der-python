@@ -30,9 +30,6 @@ for file in os.listdir("../1_DataCollection/" + folder_name):
 
     mocap_data = data["mocap_data_save"]
 
-    dt = 1.0/500  # 2ms
-    lookahead_time = 0.05
-
     mocap_data_base = data["mocap_data_save"][500:1000, :, 0]
 
     # plt.plot(mocap_data[500:1000, :3, 1], 'b-')
@@ -49,14 +46,21 @@ for file in os.listdir("../1_DataCollection/" + folder_name):
     q0 = data["q0_save"]
     qf = data["qf_save"]
 
-    print(q0, qf)
+    plt.figure("Time Sync Position")
+    joint_data = data["ur5e_jointstate_data_save"][550:1050, :] # min diff in time
+    joint_data_fk = UR5e.fk_traj_stick_world(joint_data.T, mocap_data_base[5, :])
+    plt.plot(joint_data_fk[:, :3], 'k-')
+    
 
-    plt.figure(2)
-    joint_data = data["ur5e_jointstate_data_save"][550:1050, :]
     traj = UR5e.create_trajectory(q0, qf)
+    traj_fk = UR5e.fk_traj_stick_world(traj, mocap_data_base[5, :])
 
-    print(traj.shape)
 
+    plt.plot(traj_fk[:, :3], 'b-')
+    plt.plot(mocap_data[576:1076, :3, 1], 'r-')
+
+
+    break
     plt.plot(traj.T, 'r-')    
     plt.plot(joint_data, 'b-')
 
@@ -71,10 +75,8 @@ for file in os.listdir("../1_DataCollection/" + folder_name):
     plt.plot(traj[:, 2])
 
     # break
-    # plt.plot(mocap_data[576:1076, :3, 1], 'r-')
 
-    # traj = UR5e.create_trajectory(q0, qf)
-    # traj = UR5e.fk_traj_stick_world(traj, mocap_data_base[5, :], True)
+    break
 
 
 plt.show()

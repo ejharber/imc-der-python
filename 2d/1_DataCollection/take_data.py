@@ -84,7 +84,7 @@ class UR5E(Node):
         self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
         self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
-        self.home_joint_pose = [0, -54, 134, -167, -90, 0]
+        self.home_joint_pose = [0, -53.25, 134.66, -171.28, -90, 0]
         self.home_cart_pose = None
 
         # ati cb
@@ -158,28 +158,32 @@ class UR5E(Node):
 
     def test_rope_swing(self):
 
-        q = [0, -81, 73, -167, -90, 0]
+        q = [0, -90, 95, -180, -90, 0]
+
+        self.ati_data_save = []
+        self.mocap_data_save = []
+        self.ur5e_cmd_data_save = []
+        self.ur5e_tool_data_save = []
+        self.ur5e_jointstate_data_save = []
 
         self.rope_swing(q)
         
-        self.q_save = np.array(self.q_save)
-        self.ur5e_cmd_data_save = np.array(self.ur5e_cmd_data_save)
-        self.ur5e_jointstate_data_save = np.array(self.ur5e_jointstate_data_save)
-        self.ati_data_save = np.array(self.ati_data_save)
+        # self.q_save = np.array(self.q_save)
+        # self.ur5e_cmd_data_save = np.array(self.ur5e_cmd_data_save)
+        # self.ur5e_jointstate_data_save = np.array(self.ur5e_jointstate_data_save)
+        # self.ati_data_save = np.array(self.ati_data_save)
         self.mocap_data_save = np.array(self.mocap_data_save)
 
-        plt.figure('ATI Data')
-        plt.plot(self.ati_data_save, 'b.')
-        filtered = self.butter_lowpass_filter(np.copy(self.ati_data_save).T)
-        plt.plot(filtered.T)
+        # plt.figure('ATI Data')
+        # plt.plot(self.ati_data_save, 'b.')
+        # filtered = self.butter_lowpass_filter(np.copy(self.ati_data_save).T)
+        # plt.plot(filtered.T)
 
-        print(self.mocap_data_save.shape)
+        # print(self.mocap_data_save.shape)
         plt.figure('Rope Trajectory')
-        plt.plot(self.mocap_data_save[:, 2, 0])
-        plt.plot(self.mocap_data_save[:, 2, 1])
-        plt.plot(self.mocap_data_save[:, 2, 2])
-
-        plt.show()
+        plt.plot(self.mocap_data_save[:, 0, 2], 'r-')
+        plt.plot(self.mocap_data_save[:, 1, 2], 'g-')
+        plt.plot(self.mocap_data_save[:, 2, 2], 'b-')
 
         time.sleep(3)
 
@@ -187,7 +191,7 @@ class UR5E(Node):
 
     def take_data_routine(self):
 
-        N = 4
+        N = 5
         count = 0
 
         self.ati_data_save = []
@@ -219,7 +223,7 @@ class UR5E(Node):
                         else:
                             print('failed')
 
-                    q0_save = np.array([0, -54, 134, -167, -90, 0])
+                    q0_save = np.array(np.copy(self.home_joint_pose))
                     qf_save = np.array(qf)
                     ur5e_tool_data_save = np.array(self.ur5e_tool_data_save)
                     ur5e_cmd_data_save = np.array(self.ur5e_cmd_data_save)
@@ -284,13 +288,13 @@ class UR5E(Node):
 
     def reset_rope(self):
         p = np.copy(self.home_cart_pose)
-        p[2] -= 0.025
+        p[2] -= 0.03
         self.rtde_c.moveL(p, speed = 0.01, acceleration = 0.01)
 
         time.sleep(0.5)
 
         p = np.copy(self.home_cart_pose)
-        self.rtde_c.moveL(p, speed = 0.005, acceleration = 0.01)
+        self.rtde_c.moveL(p, speed = 0.002, acceleration = 0.01)
         time.sleep(2)
 
         # zero ati
@@ -303,7 +307,10 @@ def main(args=None):
     ur5e = UR5E()
 
     # rclpy.spin(ur5e)
-    # ur5e.test_rope_swing()
+    # for _ in range(10):
+        # ur5e.test_rope_swing()
+    # plt.show()
+
     ur5e.take_data_routine()
 
     ur5e.destroy_node() # this line is optional 

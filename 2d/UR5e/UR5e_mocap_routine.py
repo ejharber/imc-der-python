@@ -64,11 +64,13 @@ class UR5EMocapCalibration(Node):
     def calibration_routine(self):
         self.go_to_home()
         
-        for dq0 in np.linspace(-20, 20, 3):
-            for dq1 in np.linspace(0, -40, 3):
-                for dq2 in np.linspace(0, -40, 3):
-                    for dq3 in np.linspace(-20, 20, 3):
-                        for dq4 in np.linspace(-20, 40, 3):
+        N = 2
+
+        for dq0 in np.linspace(-20, 20, N):
+            for dq1 in np.linspace(0, -40, N):
+                for dq2 in np.linspace(0, -40, N):
+                    for dq3 in np.linspace(-20, 20, N):
+                        for dq4 in np.linspace(-20, 40, N):
 
                             time.sleep(1)
 

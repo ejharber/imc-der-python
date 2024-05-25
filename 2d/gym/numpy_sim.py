@@ -9,15 +9,32 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3
 
     # Initial velocity
     u0 = np.array([u0]).T
-    return _run_simulation(q0, u0, N, dt, RodLength, deltaL, R, g, EI, EA, damp, m1, m2, m3, traj_u)
+
+    try:
+        return _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3, traj_u)
+    except:
+        return [], [], [], False
 
 @jit(cache=True, nopython=True)
 def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3, traj_u):
+    # :param EI: the bending stiffness. (1e-8, 1), (1e5, 1e9)
+    # :param EA: the streching stiffness.
+
+    # non-Homogenous EI
+    EI_ = np.zeros((N-1, 1))
+    EI_[:2] = 1e4 # very stiff
+    EI_[2:] = EI
+    EI = EI_
+
+    # non-Homoegneous EA
+    EA_ = np.zeros((N-1, 1))
+    EA_[:2] = 1e12 # very stiff
+    EA_[2:] = EA
+    EA = EA_
 
     ## Mass matrix
-    # print(N)
     masses = np.ones((2 * N, 1))
-    masses[:2, :] = m1 # mass of base
+    masses[:2, :] = m1 # mass of base <- should be after this
     masses[2:-2, :] = m2 # mass of rope
     masses[-2:, :] = m3 # mass of tip
     M = np.diag(masses.flatten())
@@ -31,7 +48,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
     free_top = 2*N
 
     # Tolerance
-    tol = 1e-4 # division of rod length puts units in N
+    tol = 1e-2 # division of rod length puts units in N
 
     q = 0
     f = 0
@@ -96,8 +113,8 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
             yk = q[indeces[1]].item()  # yk
             xkp1 = q[indeces[2]].item()  # xk plus 1
             ykp1 = q[indeces[3]].item()
-            dFs = grad_es(xk, yk, xkp1, ykp1, deltaL, EA)
-            dJs = hess_es(xk, yk, xkp1, ykp1, deltaL, EA)
+            dFs = grad_es(xk, yk, xkp1, ykp1, deltaL, EA[0])
+            dJs = hess_es(xk, yk, xkp1, ykp1, deltaL, EA[0])
             indeces = np.array(indeces)
             f[indeces] = f[indeces] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
             J[indeces[0]:indeces[3] + 1, indeces[0]:indeces[3] + 1] = J[indeces[0]:indeces[3] + 1,
@@ -115,15 +132,15 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
 
                 indeces = np.array(indeces)
                 # linear spring between nodes k and k + 1
-                dFs = grad_es(xk, yk, xkp1, ykp1, deltaL, EA)
-                dJs = hess_es(xk, yk, xkp1, ykp1, deltaL, EA)
+                dFs = grad_es(xk, yk, xkp1, ykp1, deltaL, EA[k])
+                dJs = hess_es(xk, yk, xkp1, ykp1, deltaL, EA[k])
                 f[indeces[2:]] = f[indeces[2:]] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
                 J[indeces[2]:indeces[5] + 1, indeces[2]:indeces[5] + 1] = J[indeces[2]:indeces[5] + 1,
                                                                           indeces[2]:indeces[5] + 1] + dJs
 
                 # Bending spring between nodes k-1, k, and k+1 located at node 2
-                dFb = grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, deltaL, EI)
-                dJb = hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, deltaL, EI)
+                dFb = grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, deltaL, EI[k])
+                dJb = hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, deltaL, EI[k])
                 f[indeces] = f[indeces] + dFb  # and here !!!!!!!!!!!!!!!!!!!!!
                 J[indeces[0]:indeces[5] + 1, indeces[0]:indeces[5] + 1] = J[indeces[0]:indeces[5] + 1,
                                                                           indeces[0]:indeces[5] + 1] + dJb

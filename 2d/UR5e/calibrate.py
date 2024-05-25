@@ -70,7 +70,6 @@ def convert_axangle_to_matrix(vec):
 
 T_mocap_robot2 = convert_quat_to_matrix(mocap_tool_poses, False)
 T_mocap_base2 = convert_quat_to_matrix(mocap_base_poses, False)
-
 T_base1_robot1 = convert_axangle_to_matrix(ur5e_tool_poses)
 
 # code for optimization approach

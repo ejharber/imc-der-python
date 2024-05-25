@@ -70,27 +70,23 @@ class UR5eCustom(Robot):
             pd = traj[1]
             pdd = traj[2]
 
-            return p, pd
+            return p
 
         weighpoints = [[q0[i], qf[i]] for i in range(6)]
         weighpoints = np.array(weighpoints)
-        weighpoints = weighpoints * np.pi / 180.0 # assume inputs are in degrees
 
         traj = []
-        traj_u = []
         time = 1 # set sim time to be 0.5 seconds
 
         for dim in range(weighpoints.shape[0]):
             x_1_traj = [0, time]
             x_2_traj = [weighpoints[dim, 0], weighpoints[dim, 1]]
             t = np.linspace(0, time, round(time*500))
-            p, pd = quintic(x_2_traj[0], x_2_traj[1], t)
-            traj.append(p)
-            traj_u.append(pd)
+            traj.append(quintic(x_2_traj[0], x_2_traj[1], t))
 
-        traj = np.array(traj) 
-        traj_u = np.array(traj_u)
-        return traj, traj_u
+        traj = np.array(traj) * np.pi / 180.0
+
+        return traj
 
     def fk_traj(self, traj, two_dimention=False):
         def getAngle(P, Q):
@@ -160,6 +156,7 @@ class UR5eCustom(Robot):
             if I.shape[0] > 0:
                 I = I[0]
                 traj_fk[I:, 2] = np.pi + (np.pi - traj_fk[I:, 2])
+            traj_fk[:, 2] = -traj_fk[:, 2]
 
         return traj_fk
 
@@ -170,13 +167,6 @@ class UR5eCustom(Robot):
             T[:3, :3] = R.from_quat(vec[[4, 5, 6, 3]]).as_matrix()
             T[3, 3] = 1
             return T
-
-        def getAngle(P, Q): # rodriguiz formula
-            R = np.dot(P, Q.T)
-            cos_theta = (np.trace(R)-1)/2
-            if cos_theta >= 1 and cos_theta <= 1 + 1e-7: # floating point error
-                cos_theta = 1
-            return np.arccos(cos_theta)
 
         mocap_base_to_world = convert_quat_to_matrix(mocap_base_to_world)
 
@@ -202,6 +192,42 @@ class UR5eCustom(Robot):
         traj_fk = np.array(traj_fk)
 
         return traj_fk
+
+    def convert_work_to_robot(self, traj_world, mocap_base_to_world):
+        def convert_quat_to_matrix(vec):
+            if len(vec.shape) == 2:
+                T = np.zeros((vec.shape[0], 4, 4))
+                for i in range(vec.shape[0]):
+                    T[i, :3, -1] = vec[i, :3]
+                    T[i, :3, :3] = R.from_quat(vec[i, [4, 5, 6, 3]]).as_matrix()
+                    T[i, 3, 3] = 1
+                return T
+            else:
+                T = np.zeros((4, 4))
+                T[:3, -1] = vec[:3]
+                T[:3, :3] = R.from_quat(vec[[4, 5, 6, 3]]).as_matrix()
+                T[3, 3] = 1
+                return T
+
+        def convert_matrix_to_quat(matrix):
+            T = np.zeros((matrix.shape[0], 7))
+            for i in range(matrix.shape[0]):
+                T[i, :3] = matrix[i, :3, -1]
+                T[i, 3:] = R.from_matrix(matrix[i, :3, :3]).as_quat()[[1, 2, 3, 0]]
+            return T
+
+        mocap_base_to_world = convert_quat_to_matrix(mocap_base_to_world)
+        traj_world = convert_quat_to_matrix(traj_world)
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        T_base2_base1 = np.load(dir_path + "/mocap_calib.npz")["T_base2_base1"]
+
+        for i in range(traj_world.shape[0]):
+            traj_world[i, :, :] = np.linalg.inv(mocap_base_to_world @ T_base2_base1) @ traj_world[i, :, :]
+
+        out = convert_matrix_to_quat(traj_world)
+
+        return out
+
 
 def main():
     # some test code
