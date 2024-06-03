@@ -15,20 +15,22 @@ class Rope(object):
         self.UR5e = UR5eCustom()
 
         ## Model Parameters (Calculated)
-        self.N = 10
+        self.N = 20
         self.dt = 0.002 # we are collecting data at 500 hz
         self.g = 9.8
         self.radius = 0.05
 
         ## Physics Parameters
-        self.dL = X[0] # should replace this with an array         
-        self.length = (self. N - 1) * self.dL
-        self.EI = X[1]
-        self.EA = X[2]
-        self.damp = X[3]
-        self.m1 = X[4]
-        self.m2 = X[5]
-        self.m3 = X[6]
+        self.dL1 = X[0] # should replace this with an array         
+        self.dL2 = X[1]
+        self.Kb1 = X[2]
+        self.Kb2 = X[3]
+        self.Ks1 = X[4]
+        self.Ks2 = X[5]
+        self.damp = X[6]
+        self.m1 = X[7]
+        self.m2 = X[8]
+        self.m3 = X[9]
 
         self.x0 = None
         self.u0 = None
@@ -47,7 +49,7 @@ class Rope(object):
         self.x0[::2] += traj[0, 0]
         self.x0[1::2] += traj[0, 1]
 
-        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.length, self.dL, self.g, self.EI, self.EA, self.damp, self.m1, self.m2, self.m3, traj_u = traj_u)
+        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL1, self.dL2, self.g, self.Kb1, self.Kb2, self.Ks1, self.Ks2, self.damp, self.m1, self.m2, self.m3, traj_u = traj_u)
 
         if not success:
             return False, [], [], [], []
@@ -55,23 +57,39 @@ class Rope(object):
         # force_x = np.sum(f_save[5::2, -500:], axis = 0)
         # force_y = np.sum(f_save[4::2, -500:], axis = 0)
 
-        force_x = f_save[4, :] - f_save[4, 100]
-        force_y = f_save[5, :] - f_save[5, 100]
-        traj_force = np.array([force_x, force_y])
-        traj_force = np.linalg.norm(traj_force, axis=0)[-500:]
+        # force_x = np.sum(f_save[5::2, :], axis = 0)
+        # force_y = np.sum(f_save[4::2, :], axis = 0)
+        # force_x = force_x - force_x[199]
+        # force_y = force_y - force_y[199]
+        # print(f_save.shape)
+        traj_force = f_save - f_save[:, 100]
+        # print(traj_force.shape)
+        traj_force = traj_force[:, -500:]
+        # print(traj_force.shape)
+        # force_y = f_save[3, :] - f_save[3, 100]
+        # traj_force = np.array([force_x, force_y])
+        # plt.plot(traj_force.T)
+        # plt.show()
+        # exit()
+        # plt.pl
 
         # force_x = force_x_ * np.cos(traj[:, 2]) - force_y_ * np.sin(traj[:, 2])
         # force_y = force_x_ * np.sin(traj[:, 2]) + force_y_ * np.cos(traj[:, 2])
 
         traj_pos = q_save[-2:, -500:] 
+        # print(traj)
 
         return success, traj_pos.T, traj_force.T, q_save.T, f_save.T
 
     def reset(self, seed = None):
 
         self.x0 = np.zeros((self.N, 2))
-        for c in range(self.N):
-            self.x0[c, 1] = - c * self.dL
+        for k in range(self.N):
+            if k <= 1:
+                self.x0[k, 1] = - k * self.dL1
+            else:
+                self.x0[k, 1] = self.x0[k-1, 1] - self.dL2
+
         self.x0 = self.x0.flatten()
         self.u0 = np.zeros(self.N*2)
 

@@ -2,7 +2,7 @@
 import numpy as np
 from numba import jit
 
-def run_simulation(x0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3, traj_u):
+def run_simulation(x0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
     # Initial DOF vector
     # Initial Position
     q0 = np.array([x0]).T
@@ -11,49 +11,56 @@ def run_simulation(x0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3
     u0 = np.array([u0]).T
 
     try:
-        return _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3, traj_u)
+        return _run_simulation(q0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u)
     except:
         return [], [], [], False
 
 @jit(cache=True, nopython=True)
-def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m3, traj_u):
-    # :param EI: the bending stiffness. (1e-8, 1), (1e5, 1e9)
-    # :param EA: the streching stiffness.
+def _run_simulation(q0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
+    # :param Kb: the bending stiffness. (1e-8, 1), (1e5, 1e9)
+    # :param Ks: the streching stiffness.
 
-    # non-Homogenous EI
-    EI_ = np.zeros((N-1, 1))
-    EI_[:2] = 1e4 # very stiff
-    EI_[2:] = EI
-    EI = EI_
+    # non-Homogenous Kb
+    Kb = np.zeros((N-1))
+    Kb[0] = Kb1
+    Kb[1] = Kb1
+    Kb[2:] = Kb2
 
-    # non-Homoegneous EA
-    EA_ = np.zeros((N-1, 1))
-    EA_[:2] = 1e12 # very stiff
-    EA_[2:] = EA
-    EA = EA_
+    # non-Homoegneous Ks
+    Ks = np.zeros((N-1))
+    Ks[0] = Ks1
+    Ks[1] = Ks1
+    Ks[2:] = Ks2
+
+    # non-Homogenous Lengths
+    dL = np.zeros((N-1))
+    dL[0] = dL1
+    dL[1] = dL1
+    dL[2:] = dL2
 
     ## Mass matrix
     masses = np.ones((2 * N, 1))
-    masses[:2, :] = m1 # mass of base <- should be after this
-    masses[2:-2, :] = m2 # mass of rope
+    masses[:6, :] = m1 # mass of base 
+    masses[6:-2, :] = m2 # mass of rope
     masses[-2:, :] = m3 # mass of tip
     M = np.diag(masses.flatten())
 
     ## Gravity or weight vector
     W = -masses * g
-    W[::2] = 0
+    W[::2] = 0.0
 
     # indeces for non - constrained motion
     free_bot = 4
     free_top = 2*N
 
     # Tolerance
-    tol = 1e-2 # division of rod length puts units in N
+    tol = 1e-4 # division of rod length puts units in N
 
     q = 0
     f = 0
+    deltaL1 = 0.0
 
-    f_save = np.zeros((q0.shape[0], traj_u.shape[1]))
+    f_save = np.zeros((1, traj_u.shape[1]))
     q_save = np.zeros((q0.shape[0], traj_u.shape[1]))
     u_save = np.zeros((u0.shape[0], traj_u.shape[1]))
 
@@ -63,7 +70,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
 
         q_ = q[2:4] - q[:2]
         rot = np.array([[0, -1], [1, 0]])
-        u_ = np.atleast_2d(traj_u[:2, c]).T + traj_u[2, c] * rot @ q_ / np.linalg.norm(q_) * deltaL
+        u_ = np.atleast_2d(traj_u[:2, c]).T + traj_u[2, c] * rot @ q_ / np.linalg.norm(q_) * dL1
 
         q[:2] = q[:2] + np.atleast_2d(traj_u[:2, c]).T*dt
 
@@ -72,7 +79,7 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
         # constraining the distance between the two constraints 
         # only required do to floating point error
         q_ = q[:2] - q[2:4]
-        q_ = q_ / np.linalg.norm(q_) * deltaL
+        q_ = q_ / np.linalg.norm(q_) * dL1
         q[2:4] = q[:2] - q_
 
         q_free = q[free_bot:free_top]
@@ -81,7 +88,16 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
         err = 10 * tol
 
         iteration = 0
-        max_iteration = 100
+        max_iteration = 1000
+
+        # o - o - o - o - o .. o
+        # ^   ^                   constrained to ur5e
+        #   ^                     constrained length
+        #       ^                 very stiff 
+        #         ^               m1
+        #           ^   ^   ^     unknown stiffness (rope)
+        #             ^   ^       m2
+        #                      ^  m3
 
         while err > tol:
 
@@ -93,28 +109,29 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
 
             # Inertia
             # use @ for matrix multiplication else it's element wise
-            f = M / dt @ ((q - q0) / dt - u0)  # inside() is new - old velocity, @ means matrix multiplication
+            f = M / dt @ ((q - q0) / dt - u0)  # inside() is new - old velocity, @ mKsns matrix multiplication
             J = M / dt ** 2.0
 
             # Weight
             f = f - W
 
             # Viscous force
-            f = f + damp * (q - q0) / dt;
-            J = J + damp / dt;
-
-            f_save[:, c] = np.copy(f[:, 0])
+            f = f + damp * (q - q0) / dt
+            J = J + damp / dt
 
             # Elastic forces
             k = 0  # do the first node or edge outside the loop
+            local_Ks = 0.0
+                        
             # Linear spring between nodes k and k + 1
             indeces = [2*k, 2*k+1, 2*k+2, 2*k+3]
             xk = q[indeces[0]].item()  # xk
             yk = q[indeces[1]].item()  # yk
             xkp1 = q[indeces[2]].item()  # xk plus 1
             ykp1 = q[indeces[3]].item()
-            dFs = grad_es(xk, yk, xkp1, ykp1, deltaL, EA[0])
-            dJs = hess_es(xk, yk, xkp1, ykp1, deltaL, EA[0])
+
+            dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
+            dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
             indeces = np.array(indeces)
             f[indeces] = f[indeces] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
             J[indeces[0]:indeces[3] + 1, indeces[0]:indeces[3] + 1] = J[indeces[0]:indeces[3] + 1,
@@ -122,31 +139,41 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
 
             for k in range(1, N-1):
                 indeces = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
+                indeces = np.array(indeces)
+
                 xkm1 = q[indeces[0]].item()  # xk minus 1
                 ykm1 = q[indeces[1]].item()
                 xk = q[indeces[2]].item()
                 yk = q[indeces[3]].item()
                 xkp1 = q[indeces[4]].item()
                 ykp1 = q[indeces[5]].item()
-                curvature0 = 0.0  # because we are using a straight beam
+                curvature0 = 0.0  # because we are using a straight bKsm
 
-                indeces = np.array(indeces)
+                deltaX = (q[indeces[2]] - q[indeces[4]])
+                deltaY = (q[indeces[3]] - q[indeces[5]])
+                if k == 1:
+                    deltaL1 = np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5)
+                    f_save[:, c] = ((deltaL1-dL[1])*Ks[1])
+
+                # local_Ks = Ks[k]
+                # if k >= 2 and np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5) < dL[k]:
+                    # local_Ks *= 0.0
+                # else:
+                    # offset = 1.0
+
                 # linear spring between nodes k and k + 1
-                dFs = grad_es(xk, yk, xkp1, ykp1, deltaL, EA[k])
-                dJs = hess_es(xk, yk, xkp1, ykp1, deltaL, EA[k])
+                dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
+                dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
                 f[indeces[2:]] = f[indeces[2:]] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
                 J[indeces[2]:indeces[5] + 1, indeces[2]:indeces[5] + 1] = J[indeces[2]:indeces[5] + 1,
                                                                           indeces[2]:indeces[5] + 1] + dJs
 
                 # Bending spring between nodes k-1, k, and k+1 located at node 2
-                dFb = grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, deltaL, EI[k])
-                dJb = hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, deltaL, EI[k])
+                dFb = grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, dL[k], Kb[k])
+                dJb = hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, dL[k], Kb[k])
                 f[indeces] = f[indeces] + dFb  # and here !!!!!!!!!!!!!!!!!!!!!
                 J[indeces[0]:indeces[5] + 1, indeces[0]:indeces[5] + 1] = J[indeces[0]:indeces[5] + 1,
                                                                           indeces[0]:indeces[5] + 1] + dJb
-
-            # print(f.T)
-            # print()
 
             # Update DOF for only the free ones
             f_free = np.copy(f[free_bot:free_top])
@@ -160,12 +187,9 @@ def _run_simulation(q0, u0, N, dt, RodLength, deltaL, g, EI, EA, damp, m1, m2, m
         u0 = (q - q0) / dt  # New velocity becomes old velocity for next iter
         q0 = q  # Old position
 
-        # f_save[c] = f[2]
-        # print(q_save[:, c].shape, q.shape)
         q_save[:, c] = q[:,0]
         u_save[:, c] = u0[:,0]
 
-    # print()
     return f_save, q_save, u_save, True
 
 @jit(cache=True, nopython=True)
@@ -182,7 +206,7 @@ def cross_mat(a):
 
 
 @jit(cache=True, nopython=True)
-def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
+def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, Kb):
     """
     This function returns the derivative of bending energy E_k^b with respect
     to x_{k-1}, y_{k-1}, x_k, y_k, x_{k+1}, and y_{k+1}.
@@ -195,7 +219,7 @@ def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     :param ykp1:
     :param curvature0: the "discrete" natural curvature [dimensionless] at node (xk, yk).
     :param l_k: the voronoi length of node (xk, yk).
-    :param EI: the bending stiffness.
+    :param Kb: the bending stiffness.
     :return: force
     """
     node0 = [xkm1, ykm1, 0.]
@@ -246,13 +270,13 @@ def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
 
     # # Gradient of Eb
     dkappa = kappa1 - kappaBar
-    dF = gradKappa * EI * dkappa / l_k
+    dF = gradKappa * Kb * dkappa / l_k
 
     return dF
 
 
 @jit(cache=True, nopython=True)
-def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
+def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, Kb):
     """
     This function returns the derivative of bending energy E_k^b with respect
     to x_{k-1}, y_{k-1}, x_k, y_k, x_{k+1}, and y_{k+1}.
@@ -265,7 +289,7 @@ def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
     :param ykp1:
     :param curvature0: the "discrete" natural curvature [dimensionless] at node (xk, yk).
     :param l_k: the voronoi length of node (xk, yk).
-    :param EI: the bending stiffness.
+    :param Kb: the bending stiffness.
     :return: jacobian
     """
     node0 = [xkm1, ykm1, 0]
@@ -362,15 +386,15 @@ def hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, EI):
 
     # # Hessian of Eb
     dkappa = kappa1 - kappaBar
-    dJ = 1.0 / l_k * EI * gradKappa * np.transpose(gradKappa)
-    temp = 1.0 / l_k * dkappa * EI
+    dJ = 1.0 / l_k * Kb * gradKappa * np.transpose(gradKappa)
+    temp = 1.0 / l_k * dkappa * Kb
     dJ = dJ + temp * DDkappa1
 
     return dJ
 
 
 @jit(cache=True, nopython=True)
-def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
+def grad_es(xk, yk, xkp1, ykp1, l_k, Ks):
     """
     This function returns the derivative of stretching energy E_k^s with
     respect to x_{k-1}, y_{k-1}, x_k, and y_k
@@ -379,7 +403,7 @@ def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
     :param xkp1:
     :param ykp1:
     :param l_k:
-    :param EA:
+    :param Ks:
     :return:
     """
 
@@ -394,13 +418,13 @@ def grad_es(xk, yk, xkp1, ykp1, l_k, EA):
     F[3] = -(0.1e1 - np.sqrt((xkp1 - xk) ** 2 + (ykp1 - yk) ** 2) / l_k) * ((xkp1 - xk) ** 2 + (ykp1 - yk) ** 2) ** (
                 -0.1e1 / 0.2e1) / l_k * (0.2e1 * ykp1 - 0.2e1 * yk)
 
-    F = 0.5 * EA * l_k * F
+    F = 0.5 * Ks * l_k * F
 
     return F
 
 
 @jit(cache=True, nopython=True)
-def hess_es(xk, yk, xkp1, ykp1, l_k, EA):
+def hess_es(xk, yk, xkp1, ykp1, l_k, Ks):
     """
     This function returns the 4x4 hessian of the stretching energy E_k^s with
     respect to x_k, y_k, x_{k+1}, and y_{k+1}.
@@ -409,7 +433,7 @@ def hess_es(xk, yk, xkp1, ykp1, l_k, EA):
     :param xkp1:
     :param ykp1:
     :param l_k:
-    :param EA:
+    :param Ks:
     :return:
     """
     J11 = (1 / ((xkp1 - xk) ** 2 + (ykp1 - yk) ** 2) / l_k ** 2 * (-2 * xkp1 + 2 * xk) ** 2) / 0.2e1 + (
@@ -474,6 +498,6 @@ def hess_es(xk, yk, xkp1, ykp1, l_k, EA):
 
     J = np.reshape(J, (4, 4))
 
-    J = 0.5 * EA * l_k * J
+    J = 0.5 * Ks * l_k * J
 
     return J
