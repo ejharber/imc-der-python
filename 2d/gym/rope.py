@@ -21,16 +21,17 @@ class Rope(object):
         self.radius = 0.05
 
         ## Physics Parameters
-        self.dL1 = X[0] # should replace this with an array         
-        self.dL2 = X[1]
-        self.Kb1 = X[2]
-        self.Kb2 = X[3]
-        self.Ks1 = X[4]
-        self.Ks2 = X[5]
-        self.damp = X[6]
-        self.m1 = X[7]
-        self.m2 = X[8]
-        self.m3 = X[9]
+        self.dL0 = X[0]
+        self.dL1 = X[1] # should replace this with an array         
+        self.dL2 = X[2]
+        self.Kb1 = X[3]
+        self.Kb2 = X[4]
+        self.Ks1 = X[5]
+        self.Ks2 = X[6]
+        self.damp = X[7]
+        self.m1 = X[8]
+        self.m2 = X[9]
+        self.m3 = X[10]
 
         self.x0 = None
         self.u0 = None
@@ -49,7 +50,7 @@ class Rope(object):
         self.x0[::2] += traj[0, 0]
         self.x0[1::2] += traj[0, 1]
 
-        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL1, self.dL2, self.g, self.Kb1, self.Kb2, self.Ks1, self.Ks2, self.damp, self.m1, self.m2, self.m3, traj_u = traj_u)
+        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL0, self.dL1, self.dL2, self.g, self.Kb1, self.Kb2, self.Ks1, self.Ks2, self.damp, self.m1, self.m2, self.m3, traj_u = traj_u)
 
         if not success:
             return False, [], [], [], []

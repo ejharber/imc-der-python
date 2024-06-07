@@ -3,6 +3,8 @@ sys.path.append("../gym/")
 from rope import Rope
 
 sys.path.append("../UR5e")
+from CustomRobots import *
+
 sys.path.append("../1_DataCollection")
 
 import matplotlib.pyplot as plt
@@ -12,7 +14,6 @@ import numpy as np
 from scipy.fft import fft, fftfreq
 from scipy.signal import butter, lfilter, freqz, sosfilt, sosfiltfilt
 
-from CustomRobots import *
 
 import numpy as np 
 from scipy.optimize import differential_evolution
@@ -98,13 +99,14 @@ def cost_fun(params):
 # print(cost_fun(params))
 
 res = differential_evolution(cost_fun,                  # the function to minimize
-                             [(5e-3, 1e-1), (5e-3, 1e-1), (1e-8, 1e2), (1e-8, 1e2), (1e3, 1e9), (1e3, 1e9), (1e-3, 4), (1e-3, 2), (1e-3, 2), (1e-3, 2)],
+                             [(5e-3, 1e-1), (5e-3, 1e-1), (5e-3, 1e-1), (1e-8, 1e2), (1e-8, 1e2), (1e3, 1e9), (1e3, 1e9), (1e-3, 4), (1e-3, 2), (1e-3, 2), (1e-3, 2)],
                              maxiter=20,
-                             # workers=4,
+                             workers=-1,
+                             updating="deferred",
                              disp=True)   # the random seed
 
 print(res)
 
 # np.savez("res_all", x=res.x)
 # np.savez("res_pose", x=res.x)
-np.savez("res_all_20", x=res.x)
+# np.savez("res_all_20", x=res.x)

@@ -2,7 +2,7 @@
 import numpy as np
 from numba import jit
 
-def run_simulation(x0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
+def run_simulation(x0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
     # Initial DOF vector
     # Initial Position
     q0 = np.array([x0]).T
@@ -11,12 +11,12 @@ def run_simulation(x0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2,
     u0 = np.array([u0]).T
 
     try:
-        return _run_simulation(q0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u)
+        return _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u)
     except:
         return [], [], [], False
 
 @jit(cache=True, nopython=True)
-def _run_simulation(q0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
+def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
     # :param Kb: the bending stiffness. (1e-8, 1), (1e5, 1e9)
     # :param Ks: the streching stiffness.
 
@@ -34,7 +34,7 @@ def _run_simulation(q0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2
 
     # non-Homogenous Lengths
     dL = np.zeros((N-1))
-    dL[0] = dL1
+    dL[0] = dL0
     dL[1] = dL1
     dL[2:] = dL2
 
@@ -70,7 +70,7 @@ def _run_simulation(q0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2
 
         q_ = q[2:4] - q[:2]
         rot = np.array([[0, -1], [1, 0]])
-        u_ = np.atleast_2d(traj_u[:2, c]).T + traj_u[2, c] * rot @ q_ / np.linalg.norm(q_) * dL1
+        u_ = np.atleast_2d(traj_u[:2, c]).T + traj_u[2, c] * rot @ q_ / np.linalg.norm(q_) * dL[0]
 
         q[:2] = q[:2] + np.atleast_2d(traj_u[:2, c]).T*dt
 
@@ -79,7 +79,7 @@ def _run_simulation(q0, u0, N, dt, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2
         # constraining the distance between the two constraints 
         # only required do to floating point error
         q_ = q[:2] - q[2:4]
-        q_ = q_ / np.linalg.norm(q_) * dL1
+        q_ = q_ / np.linalg.norm(q_) * dL[0]
         q[2:4] = q[:2] - q_
 
         q_free = q[free_bot:free_top]

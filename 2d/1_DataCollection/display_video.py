@@ -2,36 +2,37 @@
 import cv2
 import subprocess
 
-def set_logitech_camera_settings(brightness=100, contrast=100, saturation=100, sharpness=100, exposure=0):
+def set_logitech_camera_settings(camera, brightness=100, contrast=100, saturation=100, sharpness=100, exposure=0):
     # Set brightness
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c brightness=160", shell=True)  # Changed device path to /dev/video4
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c brightness=160", shell=True)  # Changed device path to /dev/video4
 
     # Set contrast
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c contrast=120", shell=True)
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c contrast=120", shell=True)
 
     # Set saturation
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c saturation={saturation}", shell=True)
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c saturation={saturation}", shell=True)
 
     # Set sharpness
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c sharpness={sharpness}", shell=True)
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c sharpness={sharpness}", shell=True)
 
     # Set exposure
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c white_balance_automatic=0", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c white_balance_automatic=0", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
 
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c zoom_absolute=115", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c zoom_absolute=115", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
 
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c auto_exposure=1 -c exposure_time_absolute=140", shell=True)
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c auto_exposure=1 -c exposure_time_absolute=140", shell=True)
     # subprocess.run(f"v4l2-ctl -d /dev/video4 -c auto_exposure=0 -c exposure_time_absolute=100", shell=True)
 
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c focus_automatic_continuous=0", shell=True)
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c focus_automatic_continuous=0", shell=True)
 
-    subprocess.run(f"v4l2-ctl -d /dev/video4 -c exposure_dynamic_framerate=1", shell=True)
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c exposure_dynamic_framerate=1", shell=True)
 
 
 
 if __name__ == "__main__":
     # Open the video capture device
-    cap = cv2.VideoCapture(4)  # Changed device index to 4
+    camera = 0
+    cap = cv2.VideoCapture(camera)  # Changed device index to 4
 
     # # Display the original video feed
     # while True:
@@ -43,7 +44,7 @@ if __name__ == "__main__":
     #         break
 
     # Set Logitech camera settings
-    set_logitech_camera_settings()
+    set_logitech_camera_settings(camera)
 
     # Display the video feed after applying the camera settings
     while True:

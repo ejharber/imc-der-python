@@ -34,7 +34,7 @@ class UR5eCustom(Robot):
         self.addconfiguration("qr", self.qr)
         self.addconfiguration("qz", self.qz)
 
-    def create_trajectory(self, q0, qf):
+    def create_trajectory(self, q0, qf, time=1):
         def quintic_func(q0, qf, T, qd0=0, qdf=0):
             X = [
                 [ 0.0,          0.0,         0.0,        0.0,     0.0,  1.0],
@@ -76,7 +76,6 @@ class UR5eCustom(Robot):
         weighpoints = np.array(weighpoints)
 
         traj = []
-        time = 1 # set sim time to be 0.5 seconds
 
         for dim in range(weighpoints.shape[0]):
             x_1_traj = [0, time]

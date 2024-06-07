@@ -24,67 +24,21 @@ import time
 from scipy.fft import fft, fftfreq
 from scipy.signal import butter, lfilter, freqz, sosfilt, sosfiltfilt
 
-def create_trajectory(weighpoints):
-    def quintic_func(q0, qf, T, qd0=0, qdf=0):
-        X = [
-            [ 0.0,          0.0,         0.0,        0.0,     0.0,  1.0],
-            [ T**5,         T**4,        T**3,       T**2,    T,    1.0],
-            [ 0.0,          0.0,         0.0,        0.0,     1.0,  0.0],
-            [ 5.0 * T**4,   4.0 * T**3,  3.0 * T**2, 2.0 * T, 1.0,  0.0],
-            [ 0.0,          0.0,         0.0,        2.0,     0.0,  0.0],
-            [20.0 * T**3,  12.0 * T**2,  6.0 * T,    2.0,     0.0,  0.0],
-        ]
-        # fmt: on
-        coeffs, resid, rank, s = np.linalg.lstsq(
-            X, np.r_[q0, qf, qd0, qdf, 0, 0], rcond=None
-        )
+import sys
+sys.path.append("../UR5e")
+from CustomRobots import *
 
-        # coefficients of derivatives
-        coeffs_d = coeffs[0:5] * np.arange(5, 0, -1)
-        coeffs_dd = coeffs_d[0:4] * np.arange(4, 0, -1)
-
-        return lambda x: (
-            np.polyval(coeffs, x),
-            np.polyval(coeffs_d, x),
-            np.polyval(coeffs_dd, x),
-        )
-
-    def quintic(q0, qf, t, qd0=0, qdf=0):
-        tf = max(t)
-
-        polyfunc = quintic_func(q0, qf, tf, qd0, qdf)
-
-        # evaluate the polynomials
-        traj = polyfunc(t)
-        p = traj[0]
-        pd = traj[1]
-        pdd = traj[2]
-
-        return p
-
-    traj = []
-    time = 1 # set sim time to be 0.5 seconds
-
-    for dim in range(weighpoints.shape[0]):
-        x_1_traj = [0, time]
-        x_2_traj = [weighpoints[dim, 0], weighpoints[dim, 1]]
-        t = np.linspace(0, time, round(time*500)) # can send data at 500 hz
-        traj.append(quintic(x_2_traj[0], x_2_traj[1], t))
-
-    traj = np.array(traj)
-
-    return traj
-
-
-class UR5E(Node):
+class UR5e_CollectData(Node):
     def __init__(self):
 
         super().__init__('collect_rope_data')
 
+        self.UR5e = UR5eCustom()
+
         self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
         self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
-        self.home_joint_pose = [0, -53.25, 134.66, -171.28, -90, 0]
+        self.home_joint_pose = [180, -53.25, 134.66, -171.28, -90, 0]
         self.home_cart_pose = None
 
         # ati cb
@@ -191,7 +145,7 @@ class UR5E(Node):
 
     def take_data_routine(self):
 
-        N = 5
+        N = 2
         count = 0
 
         self.ati_data_save = []
@@ -213,7 +167,7 @@ class UR5E(Node):
                         self.ur5e_jointstate_data_save = []
 
                         time.sleep(0.2)
-                        qf = [0, -90, 95, -180, -90, 0]
+                        qf = [180, -90, 95, -180, -90, 0]
                         qf = [qf[0], dq1 + qf[1], dq2 + qf[2], dq3 + qf[3], qf[4], 0]
 
                         self.rope_swing(qf)
@@ -241,9 +195,10 @@ class UR5E(Node):
         self.reset_rope()
         self.go_to_home()
 
-        weighpoints = [[self.home_joint_pose[i], q[i]] for i in range(6)]
-        weighpoints = np.array(weighpoints)
-        traj = create_trajectory(weighpoints)
+        q0 = np.copy(self.home_joint_pose)
+        qf = np.copy(q)
+
+        traj = self.UR5e.create_trajectory(q0, qf, time=1)
 
         # Parameters
         velocity = 3
@@ -259,7 +214,6 @@ class UR5E(Node):
         for i in range(traj.shape[1]):
             t_start = self.rtde_c.initPeriod()
             q = traj[:, i]
-            q = q * np.pi / 180
 
             self.rtde_c.servoJ(q, velocity, acceleration, dt, lookahead_time, gain)
 
@@ -304,7 +258,7 @@ class UR5E(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    ur5e = UR5E()
+    ur5e = UR5e_CollectData()
 
     # rclpy.spin(ur5e)
     # for _ in range(10):
