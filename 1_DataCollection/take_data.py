@@ -154,9 +154,9 @@ class UR5e_CollectData(Node):
         self.ur5e_tool_data_save = []
         self.ur5e_jointstate_data_save = []
 
-        for dq1 in np.linspace(-5, 5, N):
-            for dq2 in np.linspace(-5, 5, N):
-                for dq3 in np.linspace(-10, 10, N):
+        for dq1 in np.linspace(-10, 10, N):
+            for dq2 in np.linspace(-10, 10, N):
+                for dq3 in np.linspace(-12, 12, N):
 
                     for trail in range(10):
 
@@ -167,7 +167,7 @@ class UR5e_CollectData(Node):
                         self.ur5e_jointstate_data_save = []
 
                         time.sleep(0.2)
-                        qf = [180, -90, 95, -180, -90, 0]
+                        qf = [180, -90, 100, -180, -90, 0]
                         qf = [qf[0], dq1 + qf[1], dq2 + qf[2], dq3 + qf[3], qf[4], 0]
 
                         self.rope_swing(qf)

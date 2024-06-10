@@ -3,6 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Empty
 from mocap4r2_msgs.msg import Markers
+from mocap4r2_msgs.msg import RigidBodies
 
 from cv_bridge import CvBridge
 import cv2
@@ -14,11 +15,11 @@ class CollectData(Node):
         super().__init__('collect_data')
         self.bridge = CvBridge()
 
-        self.real_sense_subscription = self.create_subscription(Image, '/camera', self.real_sense_callback, 1)
+        self.real_sense_subscription = self.create_subscription(Image, '/camera/raw_image', self.real_sense_callback, 1)
         self.real_sense_subscription  # prevent unused variable warning
         self.real_sense_last_msg = None
 
-        self.mocap_subscription = self.create_subscription(Markers, '/markers', self.mocap_callback, 1)
+        self.mocap_subscription = self.create_subscription(RigidBodies, '/rigid_bodies', self.mocap_callback, 1)
         self.mocap_subscription
 
         self.mocap_history = []

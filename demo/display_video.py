@@ -4,7 +4,7 @@ import subprocess
 
 def set_logitech_camera_settings(camera, brightness=100, contrast=100, saturation=100, sharpness=100, exposure=0):
     # Set brightness
-    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c brightness=160", shell=True)  # Changed device path to /dev/video4
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c brightness=150", shell=True)  # Changed device path to /dev/video4
 
     # Set contrast
     subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c contrast=120", shell=True)
@@ -33,15 +33,6 @@ if __name__ == "__main__":
     # Open the video capture device
     camera = 0
     cap = cv2.VideoCapture(camera)  # Changed device index to 4
-
-    # # Display the original video feed
-    # while True:
-    #     ret, frame = cap.read()
-    #     if not ret:
-    #         break
-    #     cv2.imshow('Original Video Feed', frame)
-    #     if cv2.waitKey(1) & 0xFF == ord('q'):
-    #         break
 
     # Set Logitech camera settings
     set_logitech_camera_settings(camera)

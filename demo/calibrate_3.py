@@ -7,6 +7,9 @@ import glob
 
 import numpy as np
 
+import matplotlib.pyplot as plt
+import numpy as np
+
 
 
 # Defining the dimensions of checkerboard
@@ -77,16 +80,15 @@ def interpolate_checkerboard_from_mocap(mocap_marker_data):
 
     # print(x_1, x_2, x_3)
 
-    x_unit = (x_3 - x_1) / np.linalg.norm(x_3 - x_1) * 43 / 1000
-    y_unit = (x_2 - x_1) / np.linalg.norm(x_2 - x_1) * 43 / 1000
-
-    z_unit = np.cross(x_unit, y_unit)
-    z_unit = z_unit / np.linalg.norm(z_unit) * 10 / 1000
+    x_unit_mocap = (x_3 - x_1) / np.linalg.norm(x_3 - x_1) * 43 / 1000
+    y_unit_mocap = (x_2 - x_1) / np.linalg.norm(x_2 - x_1) * 43 / 1000
+    z_unit_mocap = np.cross(x_unit_mocap, y_unit_mocap)
+    z_unit_mocap = z_unit_mocap / np.linalg.norm(z_unit_mocap) * 10 / 1000
 
     mocap_checkerboard_data = []
     for y_i in range(CHECKERBOARD[1], 0, -1): # top to bottom 
         for x_i in range(1, CHECKERBOARD[0] + 1): # left to right
-            interp = x_unit * x_i + y_unit * y_i + x_1 + z_unit
+            interp = x_1 + x_unit_mocap * x_i + y_unit_mocap * y_i - z_unit_mocap
             mocap_checkerboard_data.append(interp[0, :])
 
     mocap_checkerboard_data = np.array(mocap_checkerboard_data)
@@ -135,10 +137,10 @@ for file in os.listdir('data'):
 
         # print(np.array(mocap_obj_points).shape, np.array(camera_obj_points).shape)
 
-        # break
+    cv2.imshow('img',img)
+    cv2.waitKey(0)
 
-    # cv2.imshow('img',img)
-    # cv2.waitKey(0)
+    # break
  
 cv2.destroyAllWindows()
 
@@ -159,18 +161,13 @@ img_data = np.array(img_data)
 
 # find the transformation between the mocap data and the img data
 mocap_data = np.array(mocap_obj_points)
-print(mocap_data.shape)
 mocap_data = mocap_data[:, 0, :, :]
-print(img_data.shape, (int(img_data.shape[0] * img_data.shape[1])), mocap_data.shape)
 img_data = img_data.reshape((int(img_data.shape[0] * img_data.shape[1]), 3))
 mocap_data = mocap_data.reshape((int(mocap_data.shape[0] * mocap_data.shape[1]), 3))
 
 # print(img_data.shape)
 R, t = euclidean_transform_3D(mocap_data, img_data)
 t = np.array([t]).T
-
-import matplotlib.pyplot as plt
-import numpy as np
 
 # ax = plt.axes(projection='3d')
 # print(mocap_data.shape)

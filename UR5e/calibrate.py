@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 from mpl_toolkits.mplot3d import Axes3D # <--- This is important for 3d plotting 
 
 import sys
+from scipy.optimize import differential_evolution
 
 sys.path.append("..")
 
@@ -74,6 +75,7 @@ T_base1_robot1 = convert_axangle_to_matrix(ur5e_tool_poses)
 
 # code for optimization approach
 def cost_fun(x, T_mocap_robot2, T_mocap_base2, T_base1_robot1):
+
     T_base2_base1 = np.eye(4)
     T_base2_base1[:3, -1] = x[:3]
     T_base2_base1[:3, :3] = R.from_euler('xyz', x[3:6]).as_matrix()
@@ -99,8 +101,8 @@ def cost_fun(x, T_mocap_robot2, T_mocap_base2, T_base1_robot1):
     # cost function from mocap to ur5e end effector 
     cost_2 = T_mocap_robot2 @ T_robot2_robot1 - T_mocap_base2 @ T_base2_base1 @ T_base1_robot1
 
-    print("cost1", round(np.mean(np.linalg.norm(cost_1[:, :3, -1], axis=1)), 4), round(np.std(np.linalg.norm(cost_1[:, :3, -1], axis=1)), 4))    
-    print("cost2", round(np.mean(np.linalg.norm(cost_2[:, :3, -1], axis=1)), 4), round(np.std(np.linalg.norm(cost_2[:, :3, -1], axis=1)), 4))
+    # print("cost1", round(np.mean(np.linalg.norm(cost_1[:, :3, -1], axis=1)), 4), round(np.std(np.linalg.norm(cost_1[:, :3, -1], axis=1)), 4))    
+    # print("cost2", round(np.mean(np.linalg.norm(cost_2[:, :3, -1], axis=1)), 4), round(np.std(np.linalg.norm(cost_2[:, :3, -1], axis=1)), 4))
 
     cost = np.linalg.norm(cost_1[:, :3, -1]) + np.linalg.norm(cost_2[:, :3, -1])
 
@@ -111,9 +113,9 @@ min_x = None
 
 for _ in range(20):
     x0 = np.random.rand(12)
-    bounds = [(-1, 1), (-1, 1), (-1, 1), 
+    bounds = [(-2, 2), (-2, 2), (-2, 2), 
               (-2*np.pi, 2*np.pi), (-2*np.pi, 2*np.pi), (-2*np.pi, 2*np.pi), 
-              (-1, 1), (-1, 1), (-1, 1), 
+              (-2, 2), (-2, 2), (-2, 2), 
               (-2*np.pi, 2*np.pi), (-2*np.pi, 2*np.pi), (-2*np.pi, 2*np.pi)]
 
     for i in range(x0.shape[0]):
@@ -122,6 +124,15 @@ for _ in range(20):
 
     fun = lambda x: cost_fun(x, T_mocap_robot2, T_mocap_base2, T_base1_robot1)
     x = minimize(fun, x0, bounds=bounds)
+    # x = differential_evolution(cost_fun,                  # the function to minimize
+    #                          bounds=bounds,
+    #                          args = (T_mocap_robot2, T_mocap_base2, T_base1_robot1),
+    #                          tol=0.0001,
+    #                          # maxiter=1000,
+    #                          workers=-1,
+    #                          updating="deferred",
+    #                          disp=True)   # the random seed
+
     # print(x)
     if x.fun < min_fun:
         min_fun = x.fun
@@ -182,6 +193,8 @@ ax.plot3D(xline, yline, zline, 'b.')
 ax.plot3D(xline, yline, zline, 'b-')
 
 plt.show()
+
+print(min_x)
 
 np.savez("mocap_calib", T_base1_base2=T_base1_base2, T_base2_base1=T_base2_base1, T_robot1_robot2=T_robot1_robot2, T_robot2_robot1=T_robot2_robot1)
 

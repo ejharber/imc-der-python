@@ -21,7 +21,7 @@ class UR5EMocapCalibration(Node):
         self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
         self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
-        self.home_joint_pose = [0, -54, 134, -167, -90, 0]
+        self.home_joint_pose = [180, -54, 134, -167, -90, 0]
         self.home_cart_pose = None
 
         self.mocap_base_data = []
@@ -67,10 +67,10 @@ class UR5EMocapCalibration(Node):
         N = 2
 
         for dq0 in np.linspace(-20, 20, N):
-            for dq1 in np.linspace(0, -40, N):
-                for dq2 in np.linspace(0, -40, N):
+            for dq1 in np.linspace(0, -30, N):
+                for dq2 in np.linspace(0, -30, N):
                     for dq3 in np.linspace(-20, 20, N):
-                        for dq4 in np.linspace(-20, 40, N):
+                        for dq4 in np.linspace(-20, 20, N):
 
                             time.sleep(1)
 

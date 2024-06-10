@@ -14,7 +14,7 @@ class CollectData(Node):
         super().__init__('collect_data')
         self.bridge = CvBridge()
 
-        self.camera_subscription = self.create_subscription(Image, '/camera', self.camera_callback, 1)
+        self.camera_subscription = self.create_subscription(Image, '/camera/raw_image', self.camera_callback, 1)
         self.camera_subscription  # prevent unused variable warning
         self.camera_last_msg = None
 
@@ -31,7 +31,7 @@ class CollectData(Node):
     def mocap_callback(self, msg):
         for rb in msg.rigidbodies:
             # print(rb.rigid_body_name)
-            if 'calib' in rb.rigid_body_name:
+            if 'calib_board.calib_board' == rb.rigid_body_name:
                 self.mocap_last_msg = rb
 
     def trigger_callback(self, msg):
@@ -41,11 +41,6 @@ class CollectData(Node):
 
         # ros2 topic pub --rate 1 /trigger std_msgs/msg/Empty
         # ros2 topic pub --once /trigger std_msgs/msg/Empty
-
-        # 
-
-        # if self.real_sense_last_msg is None or self.mocap_last_msg is None:
-            # return 
 
         markers = np.zeros((4, 3))
         cv_image = None
@@ -59,7 +54,6 @@ class CollectData(Node):
 
         if self.mocap_last_msg is None:
             print("NO NEW MOCAP DATA")
-
         else:
             for i, marker in enumerate(self.mocap_last_msg.markers):
                 print(marker.marker_name, marker.translation)
@@ -101,7 +95,6 @@ class CollectData(Node):
             cv2.imwrite('data/' + str(self.count) + '.png', cv_image)
             np.save('data/' + str(self.count), markers)
  
-
             self.count += 1
 
 def main(args=None):

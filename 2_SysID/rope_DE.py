@@ -30,7 +30,7 @@ def cost_fun(params):
     rope = Rope(params)
 
     file_path = "../1_DataCollection/"
-    folder_name = "raw_data"
+    folder_name = "raw_data_05012024"
 
     norm_mocap = 0
     norm_ati = 0
@@ -99,14 +99,14 @@ def cost_fun(params):
 # print(cost_fun(params))
 
 res = differential_evolution(cost_fun,                  # the function to minimize
-                             [(5e-3, 1e-1), (5e-3, 1e-1), (5e-3, 1e-1), (1e-8, 1e2), (1e-8, 1e2), (1e3, 1e9), (1e3, 1e9), (1e-3, 4), (1e-3, 2), (1e-3, 2), (1e-3, 2)],
-                             maxiter=20,
-                             workers=-1,
+                             [(1e-3, 1e-1), (1e-3, 1e-1), (1e-3, 1e-1), (1e-8, 1e2), (1e-8, 1e2), (1e3, 1e9), (1e3, 1e9), (1e-3, 4), (1e-3, 3), (1e-3, 3), (1e-3, 3)],
+                             maxiter=200,
+                             workers=16,
                              updating="deferred",
                              disp=True)   # the random seed
 
 print(res)
 
-# np.savez("res_all", x=res.x)
+np.savez("res_all_20_base", x=res.x)
 # np.savez("res_pose", x=res.x)
 # np.savez("res_all_20", x=res.x)
