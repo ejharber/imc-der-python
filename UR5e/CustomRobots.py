@@ -154,8 +154,8 @@ class UR5eCustom(Robot):
             I = np.where(np.diff(traj_fk[:, 2]) <= 0)[0]
             if I.shape[0] > 0:
                 I = I[0]
-                traj_fk[I:, 2] = np.pi + (np.pi - traj_fk[I:, 2])
-            traj_fk[:, 2] = -traj_fk[:, 2]
+                traj_fk[I:, 2] = traj_fk[I:, 2]
+            traj_fk[:, 2] = traj_fk[:, 2]
 
         return traj_fk
 

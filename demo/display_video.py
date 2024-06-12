@@ -35,13 +35,13 @@ if __name__ == "__main__":
     cap = cv2.VideoCapture(camera)  # Changed device index to 4
 
     # Set Logitech camera settings
-    set_logitech_camera_settings(camera)
+    # set_logitech_camera_settings(camera)
 
     # Display the video feed after applying the camera settings
     while True:
         ret, frame = cap.read()
         if not ret:
-            break
+            continue
         frame = cv2.rotate(frame, cv2.ROTATE_180)
         cv2.imshow('Video Feed After Settings', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):

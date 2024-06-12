@@ -59,11 +59,6 @@ class CollectData(Node):
                 print(marker.marker_name, marker.translation)
                 if marker.translation.x == 0 or marker.translation.y == 0 or marker.translation.z == 0:
                     break
-                    
-            for i, marker in enumerate(self.mocap_last_msg.markers):
-                print(marker.marker_name, marker.translation)
-                if marker.translation.x == 0 or marker.translation.y == 0 or marker.translation.z == 0:
-                    break
                 if marker.marker_name == "calib_board21":
                     markers[0, 0] = marker.translation.x
                     markers[0, 1] = marker.translation.y

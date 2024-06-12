@@ -41,11 +41,6 @@ class UR5e_CollectData(Node):
         self.home_joint_pose = [180, -53.25, 134.66, -171.28, -90, 0]
         self.home_cart_pose = None
 
-        # ati cb
-        self.ati_subscription = self.create_subscription(WrenchStamped, '/ati', self.ati_callback, 10)
-        self.ati_data = None
-        self.ati_data_zero = None
-
         # mocap cb
         self.mocap_subscription = self.create_subscription(RigidBodies, '/rigid_bodies', self.mocap_callback, 10)
         self.mocap_data = None
@@ -53,11 +48,7 @@ class UR5e_CollectData(Node):
         timer_period = 0.002
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
-        self.ati_data_save = []
         self.mocap_data_save = []
-        self.ur5e_cmd_data_save = []
-        self.ur5e_tool_data_save = []
-        self.ur5e_jointstate_data_save = []
 
         time.sleep(1)
         self.go_to_home()
@@ -65,23 +56,14 @@ class UR5e_CollectData(Node):
     def timer_callback(self):
         pass
 
-    def ati_callback(self, msg):
-        self.ati_data = [msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z, msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z]
-
     def mocap_callback(self, msg):
-        self.mocap_data = np.zeros((7, 3))
+        self.mocap_data = np.zeros((7, 1))
         for rigid_body in msg.rigidbodies:
 
             i = None
 
-            if rigid_body.rigid_body_name == "UR_base.UR_base":
-                i = 0
-
-            if rigid_body.rigid_body_name == "rope_base.rope_base":
-                i = 1
-
             if rigid_body.rigid_body_name == "rope_tip.rope_tip":
-                i = 2
+                i = 0
 
             if i is None: continue
 
@@ -103,56 +85,14 @@ class UR5e_CollectData(Node):
 
     def take_data(self):
         rclpy.spin_once(self)
-
-        self.ati_data_save.append(self.ati_data - self.ati_data_zero)
-        self.mocap_data_save.append(self.mocap_data)
-        self.ur5e_cmd_data_save.append(self.rtde_r.getTargetQ())
-        self.ur5e_tool_data_save.append(self.rtde_r.getActualTCPPose())
-        self.ur5e_jointstate_data_save.append(self.rtde_r.getActualQ())
-
-    def test_rope_swing(self):
-
-        q = [0, -90, 95, -180, -90, 0]
-
-        self.ati_data_save = []
-        self.mocap_data_save = []
-        self.ur5e_cmd_data_save = []
-        self.ur5e_tool_data_save = []
-        self.ur5e_jointstate_data_save = []
-
-        self.rope_swing(q)
-        
-        # self.q_save = np.array(self.q_save)
-        # self.ur5e_cmd_data_save = np.array(self.ur5e_cmd_data_save)
-        # self.ur5e_jointstate_data_save = np.array(self.ur5e_jointstate_data_save)
-        # self.ati_data_save = np.array(self.ati_data_save)
-        self.mocap_data_save = np.array(self.mocap_data_save)
-
-        # plt.figure('ATI Data')
-        # plt.plot(self.ati_data_save, 'b.')
-        # filtered = self.butter_lowpass_filter(np.copy(self.ati_data_save).T)
-        # plt.plot(filtered.T)
-
-        # print(self.mocap_data_save.shape)
-        plt.figure('Rope Trajectory')
-        plt.plot(self.mocap_data_save[:, 0, 2], 'r-')
-        plt.plot(self.mocap_data_save[:, 1, 2], 'g-')
-        plt.plot(self.mocap_data_save[:, 2, 2], 'b-')
-
-        time.sleep(3)
-
-        self.go_to_home()
+        self.mocap_data_save = [self.mocap_data]
 
     def take_data_routine(self):
 
-        N = 5
+        N = 3
         count = 0
 
-        self.ati_data_save = []
         self.mocap_data_save = []
-        self.ur5e_cmd_data_save = []
-        self.ur5e_tool_data_save = []
-        self.ur5e_jointstate_data_save = []
 
         for dq1 in np.linspace(-10, 10, N):
             for dq2 in np.linspace(-10, 10, N):
@@ -160,18 +100,14 @@ class UR5e_CollectData(Node):
 
                     for trail in range(10):
 
-                        self.ati_data_save = []
                         self.mocap_data_save = []
-                        self.ur5e_cmd_data_save = []
-                        self.ur5e_tool_data_save = []
-                        self.ur5e_jointstate_data_save = []
 
                         time.sleep(0.2)
                         qf = [180, -90, 100, -180, -90, 0]
                         qf = [qf[0], dq1 + qf[1], dq2 + qf[2], dq3 + qf[3], qf[4], 0]
 
                         self.rope_swing(qf)
-                        if not np.any(np.array(self.mocap_data_save)[400:1100, :, 2] == 0):
+                        if not len(self.mocap_data_save) == 0 and not np.any(np.array(self.mocap_data_save) == 0):
                             break
 
                         else:
@@ -179,13 +115,9 @@ class UR5e_CollectData(Node):
 
                     q0_save = np.array(np.copy(self.home_joint_pose))
                     qf_save = np.array(qf)
-                    ur5e_tool_data_save = np.array(self.ur5e_tool_data_save)
-                    ur5e_cmd_data_save = np.array(self.ur5e_cmd_data_save)
-                    ur5e_jointstate_data_save = np.array(self.ur5e_jointstate_data_save)
-                    ati_data_save = np.array(self.ati_data_save)
                     mocap_data_save = np.array(self.mocap_data_save)
 
-                    np.savez("raw_data/" + str(count), q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, ur5e_cmd_data_save = ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
+                    np.savez("raw_data/" + str(count), q0_save=q0_save, qf_save=qf_save, mocap_data_save=mocap_data_save)
 
                     count += 1
 
@@ -207,10 +139,6 @@ class UR5e_CollectData(Node):
         lookahead_time = 0.1
         gain = 1000
 
-        for i in range(500):
-            self.take_data()
-            time.sleep(dt)
-
         for i in range(traj.shape[1]):
             t_start = self.rtde_c.initPeriod()
             q = traj[:, i]
@@ -221,49 +149,22 @@ class UR5e_CollectData(Node):
 
             self.rtde_c.waitPeriod(t_start)
 
-        # self.take_data(q)
-
-        for i in range(500):
-            self.take_data()
-            time.sleep(dt)
-
         self.rtde_c.servoStop()
 
         self.go_to_home()
-
-    def zero_ati(self):
-        ati_data = []
-        for _ in range(100):
-            rclpy.spin_once(self)
-            if self.ati_data is None: continue 
-            ati_data.append(self.ati_data)
-
-        self.ati_data_zero = np.mean(np.array(ati_data), axis = 0)
 
     def reset_rope(self):
         p = np.copy(self.home_cart_pose)
         p[2] -= 0.03
         self.rtde_c.moveL(p, speed = 0.01, acceleration = 0.01)
 
-        time.sleep(0.5)
-
         p = np.copy(self.home_cart_pose)
-        self.rtde_c.moveL(p, speed = 0.002, acceleration = 0.01)
-        time.sleep(2)
-
-        # zero ati
-        self.zero_ati()
-
+        self.rtde_c.moveL(p, speed = 0.01, acceleration = 0.01)
 
 def main(args=None):
     rclpy.init(args=args)
 
     ur5e = UR5e_CollectData()
-
-    # rclpy.spin(ur5e)
-    # for _ in range(10):
-        # ur5e.test_rope_swing()
-    # plt.show()
 
     ur5e.take_data_routine()
 
