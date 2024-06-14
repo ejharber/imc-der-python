@@ -2,110 +2,62 @@ import sys
 sys.path.append("../gym/")
 from rope import Rope
 
+sys.path.append("../UR5e")
+from CustomRobots import *
+
 import numpy as np 
 import multiprocessing as mp
 from multiprocessing import Process
 
 def construct_data(offset = 0):
 
-    params = np.load("../2_SysID/res_all.npz")["x"]
+    params = np.load("../2_SysID/res_all_noise.npz")["x"]
     UR5e = UR5eCustom()
     rope = Rope(params)
 
-    actions_0 = []
-    traj_pos_0 = []
-    traj_force_0 = []
-    
-    actions_1 = []
-    traj_pos_1 = []
-    traj_force_1 = []
-
-    actions_2 = []
-    traj_pos_2 = []
-    traj_force_2 = []
-
-    actions_3 = []
-    traj_pos_3 = []
-    traj_force_3 = []
-
-    actions_4 = []
-    traj_pos_4 = []
-    traj_force_4 = []
-
-    actions_5 = []
-    traj_pos_5 = []
-    traj_force_5 = []
-
-    actions_6 = []
-    traj_pos_6 = []
-    traj_force_6 = []
-
-    actions_7 = []
-    traj_pos_7 = []
-    traj_force_7 = []
-
-    actions_8 = []
-    traj_pos_8 = []
-    traj_force_8 = []
-
-    actions_9 = []
-    traj_pos_9 = []
-    traj_force_9 = []
-
-    actions_10 = []
-    traj_pos_10 = []
-    traj_force_10 = []
-
-    actions_11 = []
-    traj_pos_11 = []
-    traj_force_11 = []
-
     seeds = []
 
-    print(offset)
+    q0_save = []
+    qf_save = []
+    traj_pos_save = []
+    traj_force_save = []
+    qs_save = []
+    fs_save = []
 
     for i in range(10_000):
 
         print(offset, i)
 
-        np.seed(i + offset)
-        seeds.append(i + offset)
+        np.random.seed(i + offset)
 
-        q0 = data["q0_save"]
+        q0 = [180, -53.25, 134.66, -171.28, -90, 0]
         qf = [180, -90, 100, -180, -90, 0]
         qf[1] = qf[1] + np.random.rand() * 20 - 10
         qf[2] = qf[2] + np.random.rand() * 20 - 10
         qf[3] = qf[3] + np.random.rand() * 24 - 12
-        success, traj_pos_sim, traj_force_sim, q_save, _ = rope.run_sim(q0, qf)
 
-        observation_state_0 = env.reset(i + offset)
-        if np.all(observation_state_0["pos_traj"] == 0): continue 
+        success, traj_pos, traj_force, qs, fs = rope.run_sim(q0, qf)
 
-        actions_0.append(observation_state_0["action"])
-        traj_pos_0.append(observation_state_0["pos_traj"])
-        traj_force_0.append(observation_state_0["force_traj"])
+        if not success: continue 
+        seeds.append(i + offset)
 
-    np.savez("data/rope_motion_noise_" + str(offset), actions_0=actions_0, traj_pos_0=traj_pos_0, traj_force_0=traj_force_0,
-                                                      actions_1=actions_1, traj_pos_1=traj_pos_1, traj_force_1=traj_force_1,
-                                                      actions_2=actions_2, traj_pos_2=traj_pos_2, traj_force_2=traj_force_2,
-                                                      actions_3=actions_3, traj_pos_3=traj_pos_3, traj_force_3=traj_force_3,
-                                                      actions_4=actions_4, traj_pos_4=traj_pos_4, traj_force_4=traj_force_4,
-                                                      actions_5=actions_5, traj_pos_5=traj_pos_5, traj_force_5=traj_force_5,
-                                                      actions_6=actions_6, traj_pos_6=traj_pos_6, traj_force_6=traj_force_6,
-                                                      actions_7=actions_7, traj_pos_7=traj_pos_7, traj_force_7=traj_force_7,
-                                                      actions_8=actions_8, traj_pos_8=traj_pos_8, traj_force_8=traj_force_8,
-                                                      actions_9=actions_9, traj_pos_9=traj_pos_9, traj_force_9=traj_force_9,
-                                                      actions_10=actions_10, traj_pos_10=traj_pos_10, traj_force_10=traj_force_10,
-                                                      actions_11=actions_11, traj_pos_11=traj_pos_11, traj_force_11=traj_force_11,
-                                                      seeds=seeds)
+        q0_save.append(q0)
+        qf_save.append(qf)
+        traj_pos_save.append(traj_pos)
+        traj_force_save.append(traj_force)
+        qs_save.append(qs)
+        fs_save.append(fs)
 
-# pool = mp.Pool(processes = 1)
+    np.savez("data/rope_motion_" + str(offset), q0_save=q0_save, qf_save=qf_save, traj_pos_save=traj_pos_save, traj_force_save=traj_force_save,
+                                                qs_save=qs_save, fs_save=fs_save, seeds=seeds)
 
-# args = []
+pool = mp.Pool(processes = 12)
 
-# for i in range(12*5):
-    # args.append(10_000 * i)
+args = []
 
-# pool.map(construct_data, args)
+for i in range(12*5):
+    args.append(10_000 * i)
 
-construct_data()
+pool.map(construct_data, args)
+
+# construct_data()
