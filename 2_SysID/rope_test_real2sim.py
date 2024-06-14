@@ -19,7 +19,7 @@ from scipy.optimize import differential_evolution
 
 UR5e = UR5eCustom()
 
-data = np.load("res_all.npz")
+data = np.load("res_all_noise.npz")
 print(data["x"])
 
 params = data["x"]
