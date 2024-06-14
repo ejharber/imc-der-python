@@ -50,7 +50,8 @@ def cost_fun(params):
         qf = data["qf_save"]
         mocap_data = data["mocap_data_save"][576:1076, :, 2]
         ati_data = data["ati_data_save"]
-        ati_data = butter_lowpass_filter(ati_data.T).T[525:1025, 2]
+        # ati_data = butter_lowpass_filter(ati_data.T).T[525:1025, 2]
+        ati_data = ati_data[525:1025, 2]
         # ati_data = np.linalg.norm(ati_data, axis=1)
         ati_data = ati_data - ati_data[0]
         mocap_data_base = data["mocap_data_save"][500, :, 0]
@@ -100,13 +101,13 @@ def cost_fun(params):
 
 res = differential_evolution(cost_fun,                  # the function to minimize
                              [(1e-3, 1e-1), (1e-3, 1e-1), (1e-3, 1e-1), (1e-8, 1e2), (1e-8, 1e2), (1e3, 1e9), (1e3, 1e9), (1e-3, 4), (1e-3, 3), (1e-3, 3), (1e-3, 3)],
-                             maxiter=200,
-                             workers=-1,
+                             maxiter=1000,
+                             workers=16,
                              updating="deferred",
                              disp=True)   # the random seed
 
 print(res)
 
-np.savez("res_all_20_base", x=res.x)
+np.savez("res_all_noise", x=res.x)
 # np.savez("res_pose", x=res.x)
 # np.savez("res_all_20", x=res.x)

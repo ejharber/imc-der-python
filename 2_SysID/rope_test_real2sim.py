@@ -19,7 +19,7 @@ from scipy.optimize import differential_evolution
 
 UR5e = UR5eCustom()
 
-data = np.load("res_force.npz")
+data = np.load("res_all.npz")
 print(data["x"])
 
 params = data["x"]
@@ -82,7 +82,7 @@ for file in os.listdir(file_path + folder_name):
 
     plt.show()
 
-    exit()
+    # exit()
 
 print(norm_ati, norm_mocap)
 

@@ -167,13 +167,13 @@ def construct_data(offset = 0):
                                                       actions_11=actions_11, traj_pos_11=traj_pos_11, traj_force_11=traj_force_11,
                                                       seeds=seeds)
 
-# pool = mp.Pool(processes = 1)
+pool = mp.Pool(processes = 16)
 
-# args = []
+args = []
 
-# for i in range(12*5):
-    # args.append(10_000 * i)
+for i in range(12*5):
+    args.append(10_000 * i)
 
 # pool.map(construct_data, args)
 
-construct_data()
+# construct_data()
