@@ -1,62 +1,51 @@
 import torch
-from torch import nn
-import numpy as np
+import torch.nn as nn
+import torch.optim as optim
 
-class MLP_zeroshot(nn.Module):
-    def __init__(self, mlp_num_layers, mlp_hidden_size, train=True):
-        super(MLP_zeroshot, self).__init__()
-        self.mlp_num_layers = mlp_num_layers
-        self.mlp_hidden_size = mlp_hidden_size
-        self.input_dim = 3
-        self.output_dim = 2
+class SimpleMLP(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers):
+        super(SimpleMLP, self).__init__()
+        self.layer_norm = nn.LayerNorm(input_size)
+        
+        # Dynamically create hidden layers
+        self.hidden_layers = nn.ModuleList()
+        for _ in range(num_layers):
+            self.hidden_layers.append(nn.Linear(input_size if _ == 0 else hidden_size, hidden_size))
+        
+        self.output_layer = nn.Linear(hidden_size, output_size)
+        self.relu = nn.ReLU()
 
-        self.train = train
+    def forward(self, x):
+        x = self.layer_norm(x)
+        for layer in self.hidden_layers:
+            x = self.relu(layer(x))
+        x = self.output_layer(x)
+        return x
 
-        self.X_norm = nn.Linear(3, 3)
-        self.X_norm.weight = nn.Parameter(torch.eye(3), False)
-        self.X_norm.bias = nn.Parameter(torch.zeros(self.X_norm.bias.shape), False)
+# Model parameters
+input_size = 28 * 28  # Example input size (e.g., for MNIST dataset)
+hidden_size = 500
+output_size = 10
+num_layers = 3  # Example number of hidden layers
 
-        self.y_norm = nn.Linear(2, 2)
-        self.y_norm.weight = nn.Parameter(torch.eye(2), False)
-        self.y_norm.bias = nn.Parameter(torch.zeros(self.y_norm.bias.shape), False)
+# Initialize the model, loss function, and optimizer
+model = SimpleMLP(input_size, hidden_size, output_size, num_layers)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
-        self.mlp = nn.ModuleList()
+# Dummy training loop (replace with actual training loop)
+for epoch in range(2):
+    # Dummy inputs and targets (replace with actual data)
+    inputs = torch.randn(32, input_size)
+    targets = torch.randint(0, 10, (32,))
+    
+    # Forward pass
+    outputs = model(inputs)
+    loss = criterion(outputs, targets)
+    
+    # Backward pass and optimization
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
-        for i in range(self.mlp_num_layers):
-            input_size = self.mlp_hidden_size
-            if i == 0:
-                input_size = self.input_dim
-
-            output_size = self.mlp_hidden_size
-            if i == self.mlp_num_layers - 1:
-                output_size = self.output_dim
-
-            print(input_size, output_size)
-
-            self.mlp.append(nn.Linear(input_size, output_size))
-
-    def setNorms(self, X_mean, X_std, y_mean, y_std):
-        X_mean = torch.from_numpy(X_mean.astype(np.float32))
-        X_std = torch.from_numpy(X_std.astype(np.float32))
-        y_mean = torch.from_numpy(y_mean.astype(np.float32))
-        y_std = torch.from_numpy(y_std.astype(np.float32))
-
-        self.X_norm.weight = nn.Parameter(torch.eye(3) * 1/X_std, False)
-        self.X_norm.bias = nn.Parameter(-X_mean/X_std, False)
-
-        self.y_norm.weight = nn.Parameter(torch.eye(2) * y_std, False)
-        self.y_norm.bias = nn.Parameter(y_mean, False)
-
-    def forward(self, mlp_in):
-
-        if not self.train:
-            mlp_in = self.X_norm(mlp_in)
-
-        for i in range(self.mlp_num_layers):
-            mlp_out = self.mlp[i](mlp_in)
-            mlp_in = nn.functional.relu(mlp_out) # we don't want to apply relu on the last layers
-
-        if not self.train:
-            mlp_out = self.y_norm(mlp_out)
-
-        return mlp_out
+print("Training completed.")

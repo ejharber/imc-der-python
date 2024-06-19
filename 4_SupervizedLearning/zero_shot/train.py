@@ -1,112 +1,119 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
+import intel_extension_for_pytorch as ipex  # Import IPEX if needed
 
-import numpy as np
+from loadData import load_data  # Assuming load_data is correctly defined
 
-import torch 
-from torch.utils.data import Dataset, DataLoader 
-from torch import nn
-from torch import optim
-from model import *
+class SimpleMLP(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, output_size):
+        super(SimpleMLP, self).__init__()
+        self.layer_norm = nn.LayerNorm(input_size, elementwise_affine=False)  # Adjust if needed
+        self.hidden_layers = nn.ModuleList()
+        for _ in range(num_layers):
+            self.hidden_layers.append(nn.Linear(input_size if _ == 0 else hidden_size, hidden_size).double())  # Use .double() for torch.float64
+        self.output_layer = nn.Linear(hidden_size, output_size).double()  # Adjusted output size
+        self.relu = nn.ReLU()
 
-def load_data():
-    file = "rope_motion_m=0_2.npz"
-    data = np.load('../data/' + file)
+    def forward(self, x):
+        x = self.layer_norm(x)
+        for layer in self.hidden_layers:
+            x = self.relu(layer(x))
+        x = self.output_layer(x)
+        return x
 
-    # collect data
-    X = np.empty((0, 3))
-    y = np.empty((0, 2))
+def plot_curves(train_losses, test_losses):
+    plt.figure(figsize=(10, 5))
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(test_losses, label='Test Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training and Testing Losses')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('loss_curves.png')
+    plt.show()
 
-    for i in range(1, 10):
-        X_ = data["actions_" + str(i)] # action 
-        y_ = data["traj_pos_" + str(i)][:,-2:,-1] # tip pose 
+# Load data using the function
+train_data, train_labels, test_data, test_labels = load_data("../../3_ExpandDataSet/raw_data")
+train_data = torch.tensor(train_data, dtype=torch.float64)
+train_labels = torch.tensor(train_labels, dtype=torch.float64)  # Use torch.float64 for continuous labels
+test_data = torch.tensor(test_data, dtype=torch.float64)
+test_labels = torch.tensor(test_labels, dtype=torch.float64)  # Use torch.float64 for continuous labels
 
-        X = np.append(X, X_, axis = 0)
-        y = np.append(y, y_, axis = 0)
+# Determine input size and output size from data
+input_size = train_data.shape[1]
+output_size = train_labels.shape[1]
 
-    return X, y
+# Create DataLoader for batching
+batch_size = 32
+train_dataset = TensorDataset(train_data, train_labels)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_dataset = TensorDataset(test_data, test_labels)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-def train_zeroshot(mlp_num_layers, mlp_hidden_size):
+# Initialize the model and move it to GPU if available
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = SimpleMLP(input_size, hidden_size=500, num_layers=3, output_size=output_size).to(device)
+criterion = nn.MSELoss()  # Use Mean Squared Error for regression
+optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
-    save_file_name = "MLPZS_" + str(mlp_num_layers) + "_" + str(mlp_hidden_size)
- 
-    model = MLP_zeroshot(mlp_num_layers, mlp_hidden_size)
+# Wrap model and optimizer with IPEX if needed
+# model = ipex.AmpNet(model)
+# optimizer = ipex.AmpOptimizer(optimizer)
 
-    train(model, save_file_name)
+# Training and evaluation loop
+num_epochs = 1000
+train_losses = []
+test_losses = []
 
-def train(model, save_file_name):
+for epoch in range(num_epochs):
+    model.train()  # Set the model to training mode
+    total_loss = 0
+    
+    for batch_idx, (inputs, targets) in enumerate(train_loader):
+        inputs, targets = inputs.to(device, dtype=torch.float64), targets.to(device, dtype=torch.float64)
+        
+        # Forward pass
+        outputs = model(inputs)
+        loss = criterion(outputs, targets)  # No need to reshape targets here
+        total_loss += loss.item()
+        
+        # Backward pass and optimization
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    
+    avg_train_loss = total_loss / len(train_loader)
+    train_losses.append(avg_train_loss)
+    
+    # Evaluation on test set
+    model.eval()  # Set the model to evaluation mode
+    total_test_loss = 0
+    with torch.no_grad():
+        for inputs, targets in test_loader:
+            inputs, targets = inputs.to(device, dtype=torch.float64), targets.to(device, dtype=torch.float64)
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)  # No need to reshape targets here
+            total_test_loss += loss.item()
+    
+    avg_test_loss = total_test_loss / len(test_loader)
+    test_losses.append(avg_test_loss)
+    
+    # Print epoch loss
+    print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.4f}, Test Loss: {avg_test_loss:.4f}')
 
-    print("start training")
+# Plotting and saving curves
+plot_curves(train_losses, test_losses)
 
-    X, y = load_data()
+# Save model parameters and training curves
+torch.save({
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'train_losses': train_losses,
+    'test_losses': test_losses
+}, 'model_checkpoint.pth')
 
-    # normalize data
-    X_mean = np.mean(X, axis = 0)
-    X = X - X_mean
-    X_std = np.std(X, axis = 0)
-    X = X / X_std
-
-    y_mean = np.mean(y, axis = 0)
-    y = y - y_mean
-    y_std = np.std(y, axis = 0)
-    y = y / y_std
-
-    model.setNorms(X_mean, X_std, y_mean, y_std) # save these for evaluation 
-
-    rand_i = np.linspace(0, X.shape[0] - 1, X.shape[0], dtype = int)
-    np.random.shuffle(rand_i)
-    split = X.shape[0] * 5 // 6
-
-    X_train, X_test = X[rand_i[:split], :], X[rand_i[split:], :]
-    y_train, y_test = y[rand_i[:split], :], y[rand_i[split:], :]
-
-    X_train = torch.from_numpy(X_train.astype(np.float32))
-    y_train = torch.from_numpy(y_train.astype(np.float32))
-
-    X_test = torch.from_numpy(X_test.astype(np.float32))
-    y_test = torch.from_numpy(y_test.astype(np.float32))
-
-    learning_rate = 0.05
-    loss_fn = nn.MSELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
-
-    num_epochs = 10000
-    loss_values_train = []
-    loss_values_test = []
-    for epoch in range(num_epochs):
-
-        last = 0
-        for batch in np.linspace(0, X_train.shape[0], 10, endpoint=False, dtype=np.int32):
-            if batch == 0: continue 
-
-            X_train_batched = X_train[last:batch, :]
-            y_train_batched = y_train[last:batch, :]
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-            
-            # forward + backward + optimize
-            pred = model(X_train_batched)
-            loss = loss_fn(pred, y_train_batched)
-            loss_values_train.append(loss.item())
-            loss.backward()
-            optimizer.step()
-
-            last = batch
-
-        pred = model(X_test)
-        loss = loss_fn(pred, y_test)
-        loss_values_test.append(loss.item())
-
-        print(epoch, loss_values_test[-1], loss_values_train[-1])
-
-    np.savez("models/" + save_file_name, loss_values_test = loss_values_test, loss_values_train = loss_values_train)
-    torch.save(model.state_dict(), "models/" + save_file_name + '.pkg')
-
-for mlp_num_layers in [1, 2, 3, 4, 5]:
-    for mlp_hidden_size in [10, 50, 100, 500, 1000]:
-        train_zeroshot(mlp_num_layers = 5, mlp_hidden_size=1000)
-        exit()
-
-        if mlp_num_layers == 1:
-            break 
+print("Training completed.")

@@ -48,10 +48,10 @@ def construct_data(offset = 0):
         qs_save.append(qs)
         fs_save.append(fs)
 
-    np.savez("data/rope_motion_" + str(offset), q0_save=q0_save, qf_save=qf_save, traj_pos_save=traj_pos_save, traj_force_save=traj_force_save,
+    np.savez("raw_data/rope_motion_" + str(offset), q0_save=q0_save, qf_save=qf_save, traj_pos_save=traj_pos_save, traj_force_save=traj_force_save,
                                                 qs_save=qs_save, fs_save=fs_save, seeds=seeds)
 
-pool = mp.Pool(processes = 12)
+pool = mp.Pool(processes = 24)
 
 args = []
 
