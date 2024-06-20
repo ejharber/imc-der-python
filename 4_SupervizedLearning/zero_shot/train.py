@@ -3,18 +3,21 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
-import intel_extension_for_pytorch as ipex  # Import IPEX if needed
+import intel_extension_for_pytorch as ipex  # Import IPEX
 
-from loadData import load_data  # Assuming load_data is correctly defined
+import os
+import sys
+sys.path.append("..")
+from load_data import load_data_zeroshot  # Assuming load_data is correctly defined
 
 class SimpleMLP(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(SimpleMLP, self).__init__()
-        self.layer_norm = nn.LayerNorm(input_size, elementwise_affine=False)  # Adjust if needed
+        self.layer_norm = nn.LayerNorm(input_size, elementwise_affine=False)
         self.hidden_layers = nn.ModuleList()
         for _ in range(num_layers):
-            self.hidden_layers.append(nn.Linear(input_size if _ == 0 else hidden_size, hidden_size).double())  # Use .double() for torch.float64
-        self.output_layer = nn.Linear(hidden_size, output_size).double()  # Adjusted output size
+            self.hidden_layers.append(nn.Linear(input_size if _ == 0 else hidden_size, hidden_size))
+        self.output_layer = nn.Linear(hidden_size, output_size)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -37,11 +40,11 @@ def plot_curves(train_losses, test_losses):
     plt.show()
 
 # Load data using the function
-train_data, train_labels, test_data, test_labels = load_data("../../3_ExpandDataSet/raw_data")
-train_data = torch.tensor(train_data, dtype=torch.float64)
-train_labels = torch.tensor(train_labels, dtype=torch.float64)  # Use torch.float64 for continuous labels
-test_data = torch.tensor(test_data, dtype=torch.float64)
-test_labels = torch.tensor(test_labels, dtype=torch.float64)  # Use torch.float64 for continuous labels
+train_data, train_labels, test_data, test_labels = load_data_zeroshot("../../3_ExpandDataSet/raw_data")
+train_data = torch.tensor(train_data, dtype=torch.float32)
+train_labels = torch.tensor(train_labels, dtype=torch.float32)  # Use torch.float32 for continuous labels
+test_data = torch.tensor(test_data, dtype=torch.float32)
+test_labels = torch.tensor(test_labels, dtype=torch.float32)  # Use torch.float32 for continuous labels
 
 # Determine input size and output size from data
 input_size = train_data.shape[1]
@@ -56,16 +59,13 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 # Initialize the model and move it to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = SimpleMLP(input_size, hidden_size=500, num_layers=3, output_size=output_size).to(device)
+print(device)
+model = SimpleMLP(input_size, hidden_size=500, num_layers=5, output_size=output_size).to(device)
 criterion = nn.MSELoss()  # Use Mean Squared Error for regression
-optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-
-# Wrap model and optimizer with IPEX if needed
-# model = ipex.AmpNet(model)
-# optimizer = ipex.AmpOptimizer(optimizer)
+optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
 # Training and evaluation loop
-num_epochs = 1000
+num_epochs = 500
 train_losses = []
 test_losses = []
 
@@ -74,11 +74,11 @@ for epoch in range(num_epochs):
     total_loss = 0
     
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        inputs, targets = inputs.to(device, dtype=torch.float64), targets.to(device, dtype=torch.float64)
+        inputs, targets = inputs.to(device, dtype=torch.float32), targets.to(device, dtype=torch.float32)  # Ensure inputs are float32
         
         # Forward pass
         outputs = model(inputs)
-        loss = criterion(outputs, targets)  # No need to reshape targets here
+        loss = criterion(outputs, targets)
         total_loss += loss.item()
         
         # Backward pass and optimization
@@ -94,9 +94,9 @@ for epoch in range(num_epochs):
     total_test_loss = 0
     with torch.no_grad():
         for inputs, targets in test_loader:
-            inputs, targets = inputs.to(device, dtype=torch.float64), targets.to(device, dtype=torch.float64)
+            inputs, targets = inputs.to(device, dtype=torch.float32), targets.to(device, dtype=torch.float32)  # Ensure inputs are float32
             outputs = model(inputs)
-            loss = criterion(outputs, targets)  # No need to reshape targets here
+            loss = criterion(outputs, targets)
             total_test_loss += loss.item()
     
     avg_test_loss = total_test_loss / len(test_loader)
