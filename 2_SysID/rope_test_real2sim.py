@@ -27,7 +27,7 @@ params = data["x"]
 rope = Rope(params)
 
 file_path = "../1_DataCollection/"
-folder_name = "raw_data"
+folder_name = "raw_data_06122024_1400"
 
 from scipy.fft import fft, fftfreq
 from scipy.signal import butter, lfilter, freqz, sosfilt, sosfiltfilt
@@ -55,7 +55,7 @@ for file in os.listdir(file_path + folder_name):
     ati_data = ati_data_filtered[525:1025, 2]
     ati_data = ati_data - ati_data[0]
     mocap_data_base = data["mocap_data_save"][500, :, 0]
-    mocap_data_rope = UR5e.convert_work_to_robot(mocap_data, mocap_data_base)
+    mocap_data_rope = UR5e.convert_worktraj_to_robot(mocap_data, mocap_data_base)
     traj_pos_mocap = mocap_data_rope[:, [0, 2]]
 
     traj = UR5e.create_trajectory(q0, qf)

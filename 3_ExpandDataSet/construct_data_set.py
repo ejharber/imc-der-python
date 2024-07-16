@@ -2,9 +2,6 @@ import sys
 sys.path.append("../gym/")
 from rope import Rope
 
-sys.path.append("../UR5e")
-from CustomRobots import *
-
 import numpy as np 
 import multiprocessing as mp
 from multiprocessing import Process
@@ -12,7 +9,6 @@ from multiprocessing import Process
 def construct_data(offset = 0):
 
     params = np.load("../2_SysID/res_all_noise.npz")["x"]
-    UR5e = UR5eCustom()
     rope = Rope(params)
 
     seeds = []
@@ -48,7 +44,7 @@ def construct_data(offset = 0):
         qs_save.append(qs)
         fs_save.append(fs)
 
-    np.savez("raw_data/rope_motion_" + str(offset), q0_save=q0_save, qf_save=qf_save, traj_pos_save=traj_pos_save, traj_force_save=traj_force_save,
+    np.savez("expanded_data/rope_motion_" + str(offset), q0_save=q0_save, qf_save=qf_save, traj_pos_save=traj_pos_save, traj_force_save=traj_force_save,
                                                 qs_save=qs_save, fs_save=fs_save, seeds=seeds)
 
 pool = mp.Pool(processes = 24)

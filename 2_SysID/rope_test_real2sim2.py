@@ -19,7 +19,7 @@ from scipy.optimize import differential_evolution
 
 UR5e = UR5eCustom()
 
-data = np.load("res_all_20.npz")
+data = np.load("res_all.npz")
 print(data["x"])
 
 params = data["x"]
@@ -54,7 +54,7 @@ for file in os.listdir(file_path + folder_name):
     ati_data = np.linalg.norm(ati_data_filtered[525:1025, :3], axis=1)
     ati_data = ati_data - ati_data[0]
     mocap_data_base = data["mocap_data_save"][500, :, 0]
-    mocap_data_rope = UR5e.convert_work_to_robot(mocap_data, mocap_data_base)
+    mocap_data_rope = UR5e.convert_worktraj_to_robot(mocap_data, mocap_data_base)
     traj_pos_mocap = mocap_data_rope[:, [0, 2]]
 
     print(q0, qf)

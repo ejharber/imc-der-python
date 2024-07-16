@@ -18,3 +18,6 @@ build
 *.zip
 *.pkl
 *.pkg
+*.pth
+*.png
+**/*.pth

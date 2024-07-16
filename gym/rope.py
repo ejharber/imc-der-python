@@ -94,7 +94,7 @@ class Rope(object):
         self.x0 = self.x0.flatten()
         self.u0 = np.zeros(self.N*2)
 
-    def render(self, q_save, traj_mocap = None, traj_sim = None, filename=None):
+    def render(self, q_save, traj_mocap = None, traj_sim = None, goal = None, filename=None):
 
         # plt.figure("render")
         sns.set() # Setting seaborn as default style even if use only matplotlib
@@ -105,6 +105,9 @@ class Rope(object):
             plt.legend()
         if traj_sim is not None:
             plt.plot(traj_sim[:, 0], traj_sim[:, 1], "g--", label="sim data")            
+            plt.legend()
+        if goal is not None:
+            plt.plot(goal[0], goal[1], "g+", label="goal")            
             plt.legend()
 
         circles = []

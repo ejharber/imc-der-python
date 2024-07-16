@@ -192,7 +192,7 @@ class UR5eCustom(Robot):
 
         return traj_fk
 
-    def convert_work_to_robot(self, traj_world, mocap_base_to_world):
+    def convert_worktraj_to_robot(self, traj_world, mocap_base_to_world, two_dimention=False):
         def convert_quat_to_matrix(vec):
             if len(vec.shape) == 2:
                 T = np.zeros((vec.shape[0], 4, 4))
@@ -226,6 +226,65 @@ class UR5eCustom(Robot):
         out = convert_matrix_to_quat(traj_world)
 
         return out
+
+    def convert_workpoint_to_robot(self, point_world, mocap_base_to_world, two_dimention=False):
+        def convert_quat_to_matrix(vec):
+            if len(vec.shape) == 2:
+                T = np.zeros((vec.shape[0], 4, 4))
+                for i in range(vec.shape[0]):
+                    T[i, :3, -1] = vec[i, :3]
+                    T[i, :3, :3] = R.from_quat(vec[i, [4, 5, 6, 3]]).as_matrix()
+                    T[i, 3, 3] = 1
+                return T
+            else:
+                T = np.zeros((4, 4))
+                T[:3, -1] = vec[:3]
+                T[:3, :3] = R.from_quat(vec[[4, 5, 6, 3]]).as_matrix()
+                T[3, 3] = 1
+                return T
+
+        def convert_matrix_to_quat(matrix):
+            T = np.zeros((matrix.shape[0], 7))
+            for i in range(matrix.shape[0]):
+                T[i, :3] = matrix[i, :3, -1]
+                T[i, 3:] = R.from_matrix(matrix[i, :3, :3]).as_quat()[[1, 2, 3, 0]]
+            return T
+
+        mocap_base_to_world = convert_quat_to_matrix(mocap_base_to_world)
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        T_base2_base1 = np.load(dir_path + "/mocap_calib.npz")["T_base2_base1"]
+
+        point_world = [point_world[0], point_world[1], point_world[2], 0]
+        out = np.linalg.inv(mocap_base_to_world @ T_base2_base1) @ point_world
+
+        print(out)
+        return out[[0, 2]]
+
+    def convert_robotpoint_to_world(self, goal, mocap_base_to_world):
+        def convert_quat_to_matrix(vec):
+            if len(vec.shape) == 2:
+                T = np.zeros((vec.shape[0], 4, 4))
+                for i in range(vec.shape[0]):
+                    T[i, :3, -1] = vec[i, :3]
+                    T[i, :3, :3] = R.from_quat(vec[i, [4, 5, 6, 3]]).as_matrix()
+                    T[i, 3, 3] = 1
+                return T
+            else:
+                T = np.zeros((4, 4))
+                T[:3, -1] = vec[:3]
+                T[:3, :3] = R.from_quat(vec[[4, 5, 6, 3]]).as_matrix()
+                T[3, 3] = 1
+                return T
+
+        goal = np.array([goal[0], 0.1307183, goal[1], 1])
+
+        mocap_base_to_world = convert_quat_to_matrix(mocap_base_to_world)
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        T_base2_base1 = np.load(dir_path + "/mocap_calib.npz")["T_base2_base1"]
+
+        out = mocap_base_to_world @ T_base2_base1 @ goal
+
+        return out[:3]
 
 
 def main():

@@ -55,7 +55,7 @@ def cost_fun(params):
         # ati_data = np.linalg.norm(ati_data, axis=1)
         ati_data = ati_data - ati_data[0]
         mocap_data_base = data["mocap_data_save"][500, :, 0]
-        mocap_data_rope = UR5e.convert_work_to_robot(mocap_data, mocap_data_base)
+        mocap_data_rope = UR5e.convert_worktraj_to_robot(mocap_data, mocap_data_base)
         traj_pos_mocap = mocap_data_rope[:, [0, 2]]
 
         traj = UR5e.create_trajectory(q0, qf)
