@@ -4,12 +4,20 @@ import torch.optim as optim
 
 class LSTMMLPModel(nn.Module):
     def __init__(self, input_size_lstm, input_size_classic, hidden_size_lstm, hidden_size_mlp, num_layers_lstm, num_layers_mlp, output_size,
-                 delta_actions_mean=None, delta_actions_std=None, delta_goals_mean=None, delta_goals_std=None, traj_pos_mean=None, traj_pos_std=None):
+                 x_lstm_type=0, delta_actions_mean=None, delta_actions_std=None, delta_goals_mean=None, delta_goals_std=None, traj_pos_mean=None, traj_pos_std=None):
         super(LSTMMLPModel, self).__init__()
         self.hidden_size_lstm = hidden_size_lstm
         self.num_layers_lstm = num_layers_lstm
+        self.x_lstm_type = x_lstm_type
 
-        self.lstm = nn.LSTM(input_size_lstm, hidden_size_lstm, num_layers_lstm, batch_first=True)
+        if x_lstm_type == 0:
+            self.input_size_lstm = input_size_lstm
+        elif x_lstm_type == 1:
+            self.input_size_lstm = 2  # First two dimensions
+        elif x_lstm_type == 2:
+            self.input_size_lstm = 1  # Third dimension
+
+        self.lstm = nn.LSTM(self.input_size_lstm, hidden_size_lstm, num_layers_lstm, batch_first=True)
         
         self.input_size_mlp = hidden_size_lstm + input_size_classic
 
@@ -29,11 +37,14 @@ class LSTMMLPModel(nn.Module):
         self.traj_pos_std = traj_pos_std
 
     def forward(self, x_lstm, x_classic, test=False):
-        if test:
-            # if self.data_mean is None or self.data_std is None or self.labels_mean is None or self.labels_std:
-                # print("failed to set noramlization params")
-                # return
+        if self.x_lstm_type == 0:
+            x_lstm = x_lstm
+        elif self.x_lstm_type == 1:
+            x_lstm = x_lstm[:, :, :2]  # Take the first two dimensions
+        elif self.x_lstm_type == 2:
+            x_lstm = x_lstm[:, :, 2:3]  # Take the third dimension
 
+        if test:
             x_lstm = x_lstm - self.traj_pos_mean
             x_lstm = x_lstm / self.traj_pos_std 
 

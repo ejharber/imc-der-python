@@ -24,6 +24,9 @@ print(data["x"])
 
 params = data["x"]
 # params = X = [0.05, 1, 1e-2, 1e4, 1e7, 0.15, 0.2, 0.2, 0.2]
+params[-1] = 0.05
+params[-3] = 0.05
+params[-2] = 0.05
 rope = Rope(params)
 
 file_path = "../1_DataCollection/"
@@ -64,7 +67,7 @@ for file in os.listdir(file_path + folder_name):
     success, traj_pos_sim, traj_force_sim, q_save, f_save = rope.run_sim(q0, qf)
 
     # render pose
-    rope.render(q_save, traj_pos_mocap, traj_pos_sim)
+    # rope.render(q_save, traj_pos_mocap, traj_pos_sim)
     # rope.render(q_save, traj_pos_mocap, traj_pos_sim, "results/" + file[:-4] + ".gif")
     # 
     plt.figure("pose sim v real world data")

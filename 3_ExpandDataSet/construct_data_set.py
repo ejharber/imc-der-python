@@ -8,7 +8,7 @@ from multiprocessing import Process
 
 def construct_data(offset = 0):
 
-    params = np.load("../2_SysID/res_all_noise.npz")["x"]
+    params = np.load("../2_SysID/models/res_all_noise.npz")["x"]
     rope = Rope(params)
 
     seeds = []

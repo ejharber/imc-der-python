@@ -18,19 +18,21 @@ from scipy.signal import butter, lfilter, freqz, sosfilt, sosfiltfilt
 import numpy as np 
 from scipy.optimize import differential_evolution
 
-
-def butter_lowpass_filter(data, cutoff=10, fs=500.0, order=3):
-    sos = butter(order, cutoff, fs=fs, btype='low', analog=False, output='sos')
-    filtered = sosfiltfilt(sos, data)
-    return filtered
-
-def cost_fun(params):
+def cost_fun(params, display=False):
 
     UR5e = UR5eCustom()
     rope = Rope(params)
 
-    file_path = "../1_DataCollection/"
-    folder_name = "raw_data_06122024_1400"
+    folder_name = "filtered_data"
+    file = "test.npz"
+    file_name = folder_name + "/" + file
+
+    data = np.load(file_name)
+
+    q0_save = data["q0_save"]
+    qf_save = data["qf_save"]
+    traj_pos_save = data["traj_pos_save"]
+    traj_force_save = data["traj_force_save"]
 
     norm_mocap = 0
     norm_ati = 0
@@ -38,29 +40,13 @@ def cost_fun(params):
     cost_mocap = 0
     cost_ati = 0
 
-    count = 0
-    for file in os.listdir(file_path + folder_name):
-        count += 1
-        if not count%4 == 0: continue
+    for i in range(q0_save.shape[0]):
 
-        file_name = file_path + folder_name + "/" + file
-        data = np.load(file_name)
-
-        q0 = data["q0_save"]
-        qf = data["qf_save"]
-        mocap_data = data["mocap_data_save"][576:1076, :, 2]
-        ati_data = data["ati_data_save"]
-        # ati_data = butter_lowpass_filter(ati_data.T).T[525:1025, 2]
-        ati_data = ati_data[525:1025, 2]
-        # ati_data = np.linalg.norm(ati_data, axis=1)
-        ati_data = ati_data - ati_data[0]
-        mocap_data_base = data["mocap_data_save"][500, :, 0]
-        mocap_data_rope = UR5e.convert_worktraj_to_robot(mocap_data, mocap_data_base)
-        traj_pos_mocap = mocap_data_rope[:, [0, 2]]
-
-        traj = UR5e.create_trajectory(q0, qf)
-        joint_data_fk = UR5e.fk_traj_stick(traj)
-
+        q0 = q0_save[i, :]
+        qf = qf_save[i, :]
+        traj_pos = traj_pos_save[i, :, :]
+        traj_force = traj_force_save[i, :]
+        
         success, traj_pos_sim, traj_force_sim, q_save, _ = rope.run_sim(q0, qf)
 
         if not success:
@@ -68,25 +54,23 @@ def cost_fun(params):
 
         traj_force_sim = traj_force_sim[:, 0]
 
-        cost_mocap += np.linalg.norm(traj_pos_mocap - traj_pos_sim) 
-        norm_mocap += np.linalg.norm(traj_pos_mocap) 
-        cost_ati += np.linalg.norm(traj_force_sim - ati_data)
-        # print(traj_pos_mocap.shape, traj_pos_sim.shape)
-        # print((traj_pos_mocap - traj_pos_sim).shape)        
-        norm_ati += np.linalg.norm(ati_data)       
+        cost_mocap += np.linalg.norm(traj_pos - traj_pos_sim) 
+        norm_mocap += np.linalg.norm(traj_pos) 
+        cost_ati += np.linalg.norm(traj_force - traj_force_sim)
+        norm_ati += np.linalg.norm(traj_force)       
 
-        # mocap_data = data["mocap_data_save"][576:1076, :, 2]
-        # rope.render(q_save, traj_pos_mocap, traj_pos_sim)
+        if display:
+            rope.render(q_save, traj_pos, traj_pos_sim)
 
-        # plt.figure("pose sim v real world data")
-        # plt.plot(mocap_data_rope[:, :2], 'r-')
-        # plt.plot(traj_pos_sim, 'b-')
+            plt.figure("pose sim v real world data")
+            plt.plot(traj_pos, 'r-')
+            plt.plot(traj_pos_sim, 'b-')
 
-        # plt.figure("force sim v real world data")
-        # plt.plot(ati_data[:], 'r-')
-        # plt.plot(traj_force_sim, 'b-')
+            plt.figure("force sim v real world data")
+            plt.plot(traj_force, 'r-')
+            plt.plot(traj_force_sim, 'b-')
 
-        # plt.show()
+            plt.show()
 
     cost = cost_mocap / norm_mocap + cost_ati / norm_ati
     # cost = cost_mocap / norm_mocap
@@ -96,18 +80,18 @@ def cost_fun(params):
 
     return cost
 
-# params = [0.05, 0.05, 0.05, 1e1, 1e-2, 1e5, 1e7, 0.15, 0.2, 0.2, 0.2]
-# print(cost_fun(params))
+params = [0.05, 0.05, 0.05, 1e1, 1e-2, 1e5, 1e7, 0.15, 0.01, 0.01, 0.01]
+print(cost_fun(params, True))
 
 res = differential_evolution(cost_fun,                  # the function to minimize
-                             [(1e-3, 1e-1), (1e-3, 1e-1), (1e-3, 1e-1), (1e-8, 1e2), (1e-8, 1e2), (1e3, 1e9), (1e3, 1e9), (1e-3, 4), (1e-3, 3), (1e-3, 3), (1e-3, 3)],
-                             maxiter=1000,
+                             [(1e-3, 1e-1), (1e-3, 1e-1), (1e-3, 1e-1), (1e-8, 1e2), (1e-8, 1e2), (1e3, 1e9), (1e3, 1e9), (1e-3, 4), (1e-3, 1e-1), (1e-3, 1e-1), (1e-3, 1e-1)],
+                             maxiter=10,
                              workers=16,
                              updating="deferred",
                              disp=True)   # the random seed
 
 print(res)
 
-np.savez("res_all_noise", x=res.x)
+np.savez("models/res_all_noise_test", x=res.x)
 # np.savez("res_pose", x=res.x)
 # np.savez("res_all_20", x=res.x)

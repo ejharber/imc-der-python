@@ -26,6 +26,9 @@ learning_rate = 0.00001
 momentum = 0.9
 checkpoint_freq = 50  # Frequency to save checkpoints
 
+# Define x_lstm_type
+x_lstm_type = 0  # 0: all dimensions, 1: first two dimensions, 2: third dimension
+
 def plot_curves(train_losses, test_losses, valid_losses):
     plt.figure(figsize=(10, 5))
     plt.plot(train_losses, label='Train Loss')
@@ -91,6 +94,13 @@ input_size_lstm = train_data_time_series.shape[2]  # Assuming the time series da
 input_size_classic = train_data_classic.shape[1]  # Assuming classic data is in (samples, features) format
 output_size = train_labels.shape[1]
 
+# Initialize the model and move it to GPU if available
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(device)
+model = LSTMMLPModel(input_size_lstm, input_size_classic, hidden_size_lstm, hidden_size_mlp, num_layers_lstm, num_layers_mlp, output_size, x_lstm_type=x_lstm_type).to(device)
+criterion = nn.MSELoss()  # Use Mean Squared Error for regression
+optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
+
 # Create DataLoader for batching
 train_dataset = TensorDataset(train_data_time_series, train_data_classic, train_labels)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
@@ -98,13 +108,6 @@ test_dataset = TensorDataset(test_data_time_series, test_data_classic, test_labe
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 valid_dataset = TensorDataset(valid_data_time_series, valid_data_classic, valid_labels)
 valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
-
-# Initialize the model and move it to GPU if available
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(device)
-model = LSTMMLPModel(input_size_lstm, input_size_classic, hidden_size_lstm, hidden_size_mlp, num_layers_lstm, num_layers_mlp, output_size).to(device)
-criterion = nn.MSELoss()  # Use Mean Squared Error for regression
-optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
 
 # Training and evaluation loop
 train_losses = []
@@ -181,7 +184,8 @@ for epoch in range(num_epochs):
             'delta_goals_mean': torch.tensor(delta_goals_mean, dtype=torch.float32),
             'delta_goals_std': torch.tensor(delta_goals_std, dtype=torch.float32),
             'traj_pos_mean': torch.tensor(traj_pos_mean, dtype=torch.float32),
-            'traj_pos_std': torch.tensor(traj_pos_std, dtype=torch.float32)
+            'traj_pos_std': torch.tensor(traj_pos_std, dtype=torch.float32),
+            'x_lstm_type': x_lstm_type
         }, checkpoint_path)
         print(f'Saved checkpoint: {checkpoint_path}')
 
@@ -209,7 +213,8 @@ torch.save({
     'delta_goals_mean': torch.tensor(delta_goals_mean, dtype=torch.float32),
     'delta_goals_std': torch.tensor(delta_goals_std, dtype=torch.float32),
     'traj_pos_mean': torch.tensor(traj_pos_mean, dtype=torch.float32),
-    'traj_pos_std': torch.tensor(traj_pos_std, dtype=torch.float32)
+    'traj_pos_std': torch.tensor(traj_pos_std, dtype=torch.float32),
+    'x_lstm_type': x_lstm_type
 }, 'final_model_checkpoint.pth')
 
 print("Training completed.")

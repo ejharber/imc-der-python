@@ -83,6 +83,8 @@ def load_realworlddata_iterative(seed=0):
         traj_pos_mocap = mocap_data_rope[:, [0, 2]]
         goals.append(traj_pos_mocap[-1, :])
 
+        traj_force = data["ati_data_save"][576:1076, :, 0]
+
         # plt.plot(traj_pos_mocap)
         # plt.show()
         
@@ -139,12 +141,14 @@ def load_realworlddata_iterative_check(seed=0):
         actions = data["qf_save"][:500, [1, 2, 3]]
         goals = data["traj_pos_save"][:500, -1, :]
         traj_pos = data["traj_pos_save"][:500, :, :]
+        traj_force = data["traj_force_save"][:500, :, :]
+        traj = np.append(traj_pos, traj_force, axis=2)
 
         break
 
     actions = np.array(actions)
     goals = np.array(goals)
-    traj_pos = np.array(traj_pos)
+    traj = np.array(traj)
 
     print(actions.shape, goals.shape, traj_pos.shape)
 
@@ -155,14 +159,14 @@ def load_realworlddata_iterative_check(seed=0):
     delta_goals = goals[:, np.newaxis, :] * 0 + goals[np.newaxis, :, :]
     
     # Calculate delta trajectory positions
-    delta_traj_pos = traj_pos[:, np.newaxis, :, :] - traj_pos[np.newaxis, :, :, :] * 0
+    delta_traj = traj[:, np.newaxis, :, :] - traj[np.newaxis, :, :, :] * 0
 
     delta_actions = np.reshape(delta_actions, (delta_actions.shape[0]*delta_actions.shape[1], delta_actions.shape[2]))
     delta_goals = np.reshape(delta_goals, (delta_goals.shape[0]*delta_goals.shape[1], delta_goals.shape[2]))
-    delta_traj_pos = np.reshape(delta_traj_pos, (delta_traj_pos.shape[0]*delta_traj_pos.shape[1], delta_traj_pos.shape[2], delta_traj_pos.shape[3]))
+    delta_traj = np.reshape(delta_traj, (delta_traj.shape[0]*delta_traj.shape[1], delta_traj.shape[2], delta_traj.shape[3]))
 
     valid_data = dict()
-    valid_data["time_series"] = delta_traj_pos
+    valid_data["time_series"] = delta_traj
     valid_data["classic"] = delta_actions
 
     valid_labels = delta_goals
@@ -270,4 +274,4 @@ def load_data_iterative(folder_name, seed=0, normalize=True, subset=False):
 
 if __name__ == '__main__':
     # load_data_iterative("../3_ExpandDataSet/raw_data")
-    load_realworlddata_iterative()
+    load_realworlddata_iterative_check()
