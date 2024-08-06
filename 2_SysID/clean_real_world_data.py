@@ -27,7 +27,7 @@ def clean_data(mocap_data, ati_data):
 def clean_raw_data():
 
     file_path = "../1_DataCollection/"
-    folder_name = "raw_data_06122024_1400"
+    folder_name = "raw_data_3"
     count = 0
 
     traj_pos_save = []
@@ -36,9 +36,6 @@ def clean_raw_data():
     q0_save = []
 
     for file in os.listdir(file_path + folder_name):
-    
-        count += 1
-        if not count%4 == 0: continue
 
         print(count, file)
 
@@ -47,6 +44,8 @@ def clean_raw_data():
 
         traj_pos, traj_force = clean_data(data["mocap_data_save"], data["ati_data_save"])
 
+        # if np.any(traj_force > 100) or np.any(traj_force < -100): continue
+
         traj_pos_save.append(traj_pos)
         traj_force_save.append(traj_force)
         qf_save.append(data["qf_save"])
@@ -54,6 +53,8 @@ def clean_raw_data():
         
     traj_pos_save = np.array(traj_pos_save)
     traj_force_save = np.array(traj_force_save)
+    traj_force_save = np.expand_dims(traj_force_save, axis=2)
+
     qf_save = np.array(qf_save)
     q0_save = np.array(q0_save)
 
@@ -64,10 +65,12 @@ def clean_raw_data():
     plt.plot(traj_pos_save[:, :, 1].T)
 
     plt.figure("force")
-    plt.plot(traj_force_save.T)
+    plt.plot(traj_force_save[:, :, 0].T)
     plt.show()
 
-    np.savez("filtered_data/test", q0_save=q0_save, qf_save=qf_save, traj_pos_save=traj_pos_save, traj_force_save=traj_force_save)
+    print(traj_pos_save.shape, traj_force_save.shape, qf_save.shape, q0_save.shape)
+
+    np.savez("filtered_data/3.npz", q0_save=q0_save, qf_save=qf_save, traj_pos_save=traj_pos_save, traj_force_save=traj_force_save)
 
 if __name__ == "__main__":
     clean_raw_data()

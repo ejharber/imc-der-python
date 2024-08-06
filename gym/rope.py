@@ -10,7 +10,7 @@ import matplotlib.animation as animation
 import imageio
 
 class Rope(object):
-    def __init__(self, X):
+    def __init__(self, X, compression):
 
         self.UR5e = UR5eCustom()
 
@@ -27,11 +27,14 @@ class Rope(object):
         self.Kb1 = X[3]
         self.Kb2 = X[4]
         self.Ks1 = X[5]
-        self.Ks2 = X[6]
-        self.damp = X[7]
-        self.m1 = X[8]
-        self.m2 = X[9]
-        self.m3 = X[10]
+        self.Ks2_p = X[6]
+        self.Ks2_m = X[7]
+        self.damp = X[8]
+        self.m1 = X[9]
+        self.m2 = X[10]
+        self.m3 = X[11]
+
+        self.compression = compression
 
         self.x0 = None
         self.u0 = None
@@ -50,7 +53,7 @@ class Rope(object):
         self.x0[::2] += traj[0, 0]
         self.x0[1::2] += traj[0, 1]
 
-        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL0, self.dL1, self.dL2, self.g, self.Kb1, self.Kb2, self.Ks1, self.Ks2, self.damp, self.m1, self.m2, self.m3, traj_u = traj_u)
+        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL0, self.dL1, self.dL2, self.g, self.Kb1, self.Kb2, self.Ks1, self.Ks2_p, self.Ks2_m, self.damp, self.m1, self.m2, self.m3, traj_u = traj_u, compression=self.compression)
 
         if not success:
             return False, [], [], [], []

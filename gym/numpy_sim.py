@@ -2,7 +2,7 @@
 import numpy as np
 from numba import jit
 
-def run_simulation(x0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
+def run_simulation(x0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m, damp, m1, m2, m3, traj_u, compression):
     # Initial DOF vector
     # Initial Position
     q0 = np.array([x0]).T
@@ -11,12 +11,12 @@ def run_simulation(x0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1
     u0 = np.array([u0]).T
 
     try:
-        return _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u)
+        return _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m, damp, m1, m2, m3, traj_u, compression)
     except:
         return [], [], [], False
 
 @jit(cache=True, nopython=True)
-def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
+def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m, damp, m1, m2, m3, traj_u, compression):
     # :param Kb: the bending stiffness. (1e-8, 1), (1e5, 1e9)
     # :param Ks: the streching stiffness.
 
@@ -27,10 +27,15 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m
     Kb[2:] = Kb2
 
     # non-Homoegneous Ks
-    Ks = np.zeros((N-1))
-    Ks[0] = Ks1
-    Ks[1] = Ks1
-    Ks[2:] = Ks2
+    Ks_p = np.zeros((N-1))
+    Ks_p[0] = Ks1
+    Ks_p[1] = Ks1
+    Ks_p[2:] = Ks2_p
+
+    Ks_m = np.zeros((N-1))
+    Ks_m[0] = Ks1
+    Ks_m[1] = Ks1
+    Ks_m[2:] = Ks2_m
 
     # non-Homogenous Lengths
     dL = np.zeros((N-1))
@@ -130,8 +135,8 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m
             xkp1 = q[indeces[2]].item()  # xk plus 1
             ykp1 = q[indeces[3]].item()
 
-            dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
-            dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
+            dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks_p[k])
+            dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks_p[k])
             indeces = np.array(indeces)
             f[indeces] = f[indeces] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
             J[indeces[0]:indeces[3] + 1, indeces[0]:indeces[3] + 1] = J[indeces[0]:indeces[3] + 1,
@@ -149,21 +154,19 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m
                 ykp1 = q[indeces[5]].item()
                 curvature0 = 0.0  # because we are using a straight bKsm
 
-                deltaX = (q[indeces[2]] - q[indeces[4]])
-                deltaY = (q[indeces[3]] - q[indeces[5]])
+                deltaX = (xk - xkp1)
+                deltaY = (yk - ykp1)
                 if k == 1:
                     deltaL1 = np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5)
-                    f_save[:, c] = ((deltaL1-dL[1])*Ks[1])
+                    f_save[:, c] = ((deltaL1-dL[1])*Ks_p[1])
 
-                # local_Ks = Ks[k]
-                # if k >= 2 and np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5) < dL[k]:
-                    # local_Ks *= 0.0
-                # else:
-                    # offset = 1.0
+                local_Ks = Ks_p[k]
+                if np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5) < dL[k]:
+                    local_Ks = Ks_m[k]
 
                 # linear spring between nodes k and k + 1
-                dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
-                dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
+                dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], local_Ks)
+                dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], local_Ks)
                 f[indeces[2:]] = f[indeces[2:]] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
                 J[indeces[2]:indeces[5] + 1, indeces[2]:indeces[5] + 1] = J[indeces[2]:indeces[5] + 1,
                                                                           indeces[2]:indeces[5] + 1] + dJs

@@ -60,62 +60,49 @@ def load_data_zeroshot(folder_name, seed=0, noramlize=True):
             actions[test_indices], goals[test_indices],
             actions_mean, actions_std, goals_mean, goals_std)
 
-def load_realworlddata_iterative(seed=0):
-    # Assuming UR5eCustom is defined somewhere in your code
-    UR5e = UR5eCustom()
+def load_realworlddata_zeroshot(seed=0):
 
-    file_path = os.path.dirname(os.path.realpath(__file__)) + "/../1_DataCollection/"
-    folder_name = "raw_data_06122024_1400"
+    file_path = os.path.dirname(os.path.realpath(__file__)) + "/../2_SysID/filtered_data/"
+    file_name = "raw_data_06122024_1400.npz"
+    data = np.load(os.path.join(file_path, file_name))
 
     np.random.seed(seed)
 
-    actions = []
-    goals = []
-    traj_pos = []
+    actions = data["qf_save"][:, [1, 2, 3]]
+    goals = data["traj_pos_save"][:, -1, :]
+    
+    # Return normalized data, means, and stds for train and test sets
+    return (actions, goals)
 
-    for file in os.listdir(file_path + folder_name):
-        file_name = file_path + folder_name + "/" + file
-        data = np.load(file_name)
+def load_realworlddata_iterative(seed=0):
 
-        mocap_data = data["mocap_data_save"][576:1076, :, 2]
-        mocap_data_base = data["mocap_data_save"][500, :, 0]
-        mocap_data_rope = UR5e.convert_worktraj_to_robot(mocap_data, mocap_data_base)
-        traj_pos_mocap = mocap_data_rope[:, [0, 2]]
-        goals.append(traj_pos_mocap[-1, :])
+    file_path = os.path.dirname(os.path.realpath(__file__)) + "/../2_SysID/filtered_data/"
+    file_name = "raw_data_06122024_1400.npz"
+    data = np.load(os.path.join(file_path, file_name))
 
-        traj_force = data["ati_data_save"][576:1076, :, 0]
+    np.random.seed(seed)
 
-        # plt.plot(traj_pos_mocap)
-        # plt.show()
-        
-        qf = data["qf_save"]
-
-        traj_pos.append(traj_pos_mocap)
-        actions.append(qf[[1, 2, 3]])
-        # goals_ = data["mocap_data_save"][-1, :, 2]
-        # print(data["mocap_data_save"][-1, :, 2])
-        # print([data["mocap_data_save"][-1, :3, 2]])
-        # goals.append(UR5e.convert_worktraj_to_robot(np.array([data["mocap_data_save"][-1, :, 2]]), mocap_data_base)[0, [0, 2], 3])
-
-    actions = np.array(actions)
-    goals = np.array(goals)
-    traj_pos = np.array(traj_pos)
+    actions = data["qf_save"][:, [1, 2, 3]]
+    goals = data["traj_pos_save"][:, -1, :]
+    traj_pos = data["traj_pos_save"][:, :, :]
+    traj_force = data["traj_force_save"][:, :, :]
+    traj = np.append(traj_pos, traj_force, axis=2)
 
     # Calculate delta actions
     delta_actions = actions[:, np.newaxis, :] - actions[np.newaxis, :, :]
 
     # Calculate delta goals
-    delta_goals = goals[:, np.newaxis, :] * 0 + goals[np.newaxis, :, :]
-
+    delta_goals = goals[:, np.newaxis, :] - goals[np.newaxis, :, :]
+    
     # Calculate delta trajectory positions
-    delta_traj_pos = traj_pos[:, np.newaxis, :, :] - traj_pos[np.newaxis, :, :, :] * 0
+    delta_traj = traj[:, np.newaxis, :, :] - traj[np.newaxis, :, :, :] * 0
 
     delta_actions = np.reshape(delta_actions, (delta_actions.shape[0]*delta_actions.shape[1], delta_actions.shape[2]))
     delta_goals = np.reshape(delta_goals, (delta_goals.shape[0]*delta_goals.shape[1], delta_goals.shape[2]))
-    delta_traj_pos = np.reshape(delta_traj_pos, (delta_traj_pos.shape[0]*delta_traj_pos.shape[1], delta_traj_pos.shape[2], delta_traj_pos.shape[3]))
+    delta_traj = np.reshape(delta_traj, (delta_traj.shape[0]*delta_traj.shape[1], delta_traj.shape[2], delta_traj.shape[3]))
 
     valid_data = dict()
-    valid_data["time_series"] = delta_traj_pos
+    valid_data["time_series"] = delta_traj
     valid_data["classic"] = delta_actions
 
     valid_labels = delta_goals
@@ -156,7 +143,7 @@ def load_realworlddata_iterative_check(seed=0):
     delta_actions = actions[:, np.newaxis, :] - actions[np.newaxis, :, :]
 
     # Calculate delta goals
-    delta_goals = goals[:, np.newaxis, :] * 0 + goals[np.newaxis, :, :]
+    delta_goals = goals[:, np.newaxis, :] - goals[np.newaxis, :, :]
     
     # Calculate delta trajectory positions
     delta_traj = traj[:, np.newaxis, :, :] - traj[np.newaxis, :, :, :] * 0
@@ -179,7 +166,7 @@ def load_data_iterative(folder_name, seed=0, normalize=True, subset=False):
 
     delta_actions = []
     delta_goals = []
-    traj_pos = []
+    traj = []
 
     for file in os.listdir(folder_name):
         if not file.endswith(".npz"): continue 
@@ -192,10 +179,12 @@ def load_data_iterative(folder_name, seed=0, normalize=True, subset=False):
         split = int(actions.shape[0] / 2)
 
         delta_actions.append(actions[:split, :] - actions[split:, :])
-        # delta_goals.append(goals[:split, :] - goals[split:, :])
-        delta_goals.append(goals[split:, :])
+        delta_goals.append(goals[:split, :] - goals[split:, :])
+        # delta_goals.append(goals[split:, :])
 
-        traj_pos.append(data["traj_pos_save"][:split, :, :])
+        traj_pos = data["traj_pos_save"][:split, :, :]
+        traj_force = data["traj_force_save"][:split, :, :]
+        traj.append(np.append(traj_pos, traj_force, axis=2))
 
         if subset:
             break
@@ -229,19 +218,19 @@ def load_data_iterative(folder_name, seed=0, normalize=True, subset=False):
     if normalize:
         delta_goals = (delta_goals - delta_goals_mean) / delta_goals_std
 
-    traj_pos = np.array(traj_pos)
-    traj_pos = np.reshape(traj_pos, (traj_pos.shape[0]*traj_pos.shape[1], traj_pos.shape[2], traj_pos.shape[3]))
-    traj_pos = np.random.normal(loc=traj_pos, scale=0.1, size=traj_pos.shape)
+    traj = np.array(traj)
+    traj = np.reshape(traj, (traj.shape[0]*traj.shape[1], traj.shape[2], traj.shape[3]))
+    traj = np.random.normal(loc=traj, scale=0.1, size=traj.shape)
 
     # traj_pos = traj_pos[purge, :, :]
 
     # Calculate mean and standard deviation of traj_pos along the third dimension
-    traj_pos_mean = np.mean(traj_pos, axis=(0, 1))
-    traj_pos_std = np.std(traj_pos, axis=(0, 1))
+    traj_mean = np.mean(traj, axis=(0, 1))
+    traj_std = np.std(traj, axis=(0, 1))
 
     # Normalize traj_pos
     if normalize:
-        traj_pos = (traj_pos - traj_pos_mean) / traj_pos_std
+        traj = (traj - traj_mean) / traj_std
 
     # Create a list of indices and shuffle them
     indices = np.arange(delta_actions.shape[0])
@@ -253,25 +242,26 @@ def load_data_iterative(folder_name, seed=0, normalize=True, subset=False):
     test_indices = indices[split:]
 
     train_data = dict()
-    train_data["time_series"] = traj_pos[train_indices, :, :]
+    train_data["time_series"] = traj[train_indices, :, :]
     train_data["classic"] = delta_actions[train_indices, :]
 
     train_labels = delta_goals[train_indices, :]
 
     test_data = dict()
-    test_data["time_series"] = traj_pos[test_indices, :, :]
+    test_data["time_series"] = traj[test_indices, :, :]
     test_data["classic"] = delta_actions[test_indices, :]
 
     test_labels = delta_goals[test_indices, :]
 
     print(delta_actions_mean.shape, delta_actions_std.shape, delta_goals_mean.shape, delta_goals_std.shape,
-            traj_pos_mean.shape, traj_pos_std.shape)
+            traj_mean.shape, traj_std.shape)
 
     # Return normalized data, means, and stds for train and test sets
     return (train_data, train_labels, test_data, test_labels,
             delta_actions_mean, delta_actions_std, delta_goals_mean, delta_goals_std,
-            traj_pos_mean, traj_pos_std)
+            traj_mean, traj_std)
 
 if __name__ == '__main__':
     # load_data_iterative("../3_ExpandDataSet/raw_data")
     load_realworlddata_iterative_check()
+    load_realworlddata_iterative()

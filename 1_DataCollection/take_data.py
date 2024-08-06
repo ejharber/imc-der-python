@@ -1,4 +1,37 @@
+#!/usr/bin/env python3
 
+import rtde_control
+import rtde_receive
+import numpy as np
+
+import rclpy
+from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
+
+import time
+import os
+import threading
+
+# ros packages
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from sensor_msgs.msg import JointState
+from geometry_msgs.msg import WrenchStamped
+from geometry_msgs.msg import PoseStamped
+from rclpy.node import Node
+from mocap4r2_msgs.msg import RigidBodies
+import matplotlib.pyplot as plt
+
+import numpy as np
+import time
+
+import sys
+sys.path.append("../UR5e")
+from CustomRobots import *
 
 class UR5e_CollectData(Node):
     def __init__(self):
@@ -8,6 +41,11 @@ class UR5e_CollectData(Node):
 
         self.home_joint_pose = [180, -53.25, 134.66, -171.28, -90, 0]
         self.home_cart_pose = None
+
+        # ati cb
+        self.ati_subscription = self.create_subscription(WrenchStamped, '/FT39143', self.ati_callback, 10)
+        self.ati_data = None
+        self.ati_data_zero = None
 
         # mocap cb
         self.mocap_subscription = self.create_subscription(RigidBodies, '/rigid_bodies', self.mocap_callback, 10)
@@ -30,30 +68,24 @@ class UR5e_CollectData(Node):
         self.ur5e_tool_data_save = []
         self.ur5e_jointstate_data_save = []
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.load_model()
+    def ati_callback(self, msg):
+        self.ati_data = [msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z, msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z]
 
     def mocap_callback(self, msg):
         self.mocap_data = np.zeros((7, 3))
         for rigid_body in msg.rigidbodies:
-
             i = None
-
             if rigid_body.rigid_body_name == "UR_base.UR_base":
                 i = 0
-
             if rigid_body.rigid_body_name == "rope_base.rope_base":
                 i = 1
-
             if rigid_body.rigid_body_name == "rope_tip.rope_tip":
                 i = 2
-
             if i is None: continue
 
             self.mocap_data[0, i] = rigid_body.pose.position.x    
             self.mocap_data[1, i] = rigid_body.pose.position.y    
             self.mocap_data[2, i] = rigid_body.pose.position.z    
-
             self.mocap_data[3, i] = rigid_body.pose.orientation.w    
             self.mocap_data[4, i] = rigid_body.pose.orientation.x    
             self.mocap_data[5, i] = rigid_body.pose.orientation.y  
@@ -65,14 +97,10 @@ class UR5e_CollectData(Node):
 
             imgpoints, _ = cv2.projectPoints(self.mocap_data_goal, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
             for i in range(imgpoints.shape[0]):
-                # if imgpoints[i, 0, 0] < 0 or imgpoints[i, 0, 1] < 0: continue 
-                # if imgpoints[i, 0, 0] > img.shape[0] or imgpoints[i, 0, 1] > img.shape[1]: continue 
                 img = cv2.circle(img, (int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])), 3, (255,0,0), -1)
 
             imgpoints, _ = cv2.projectPoints(self.mocap_data_actual, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
             for i in range(imgpoints.shape[0]):
-                # if imgpoints[i, 0, 0] < 0 or imgpoints[i, 0, 1] < 0: continue 
-                # if imgpoints[i, 0, 0] > img.shape[0] or imgpoints[i, 0, 1] > img.shape[1]: continue 
                 img = cv2.circle(img, (int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])), 3, (0,0,255), -1)
 
             cv2.imshow("Image", img)
@@ -89,17 +117,37 @@ class UR5e_CollectData(Node):
         self.home_cart_pose = self.rtde_r.getActualTCPPose()
 
     def take_data(self):
-
         self.ati_data_save.append(self.ati_data - self.ati_data_zero)
         self.mocap_data_save.append(self.mocap_data)
         self.ur5e_cmd_data_save.append(self.rtde_r.getTargetQ())
         self.ur5e_tool_data_save.append(self.rtde_r.getActualTCPPose())
         self.ur5e_jointstate_data_save.append(self.rtde_r.getActualQ())
 
+    def update_plot(self):
+        ati_data_save = np.array(self.mocap_data_save)
+        print(ati_data_save.shape)
+        self.line.set_xdata(np.arange(ati_data_save.shape[0]))
+        self.line.set_ydata(ati_data_save[:, 2])
+        self.ax.relim()
+        self.ax.autoscale_view()
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
     def take_data_routine(self):
 
-        N = 6 # take for 3 "levels" of experiments
-        # with 2^3, 3^3, 4^3 and 5^3 bits of data
+        # Initialize Matplotlib in interactive mode
+        plt.ion()
+        self.fig, self.ax = plt.subplots()
+
+        self.line, = self.ax.plot([], [], 'r-')  # Initialize an empty plot
+        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
+        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
+
+        N = 4 # take for 3 "levels" of experiments
+        # 2^3 = 8
+        # 3^3 = 27
+        # 4^3 = 64
+        # 5^3 = 125
         count = 0
 
         self.ati_data_save = []
@@ -111,6 +159,10 @@ class UR5e_CollectData(Node):
         for dq1 in np.linspace(-10, 10, N):
             for dq2 in np.linspace(-10, 10, N):
                 for dq3 in np.linspace(-12, 12, N):
+
+                    if count < 58:
+                        count += 1
+                        continue
 
                     for trail in range(10):
 
@@ -131,6 +183,8 @@ class UR5e_CollectData(Node):
                         else:
                             print('failed')
 
+                    # self.update_plot()
+
                     q0_save = np.array(np.copy(self.home_joint_pose))
                     qf_save = np.array(qf)
                     ur5e_tool_data_save = np.array(self.ur5e_tool_data_save)
@@ -139,7 +193,7 @@ class UR5e_CollectData(Node):
                     ati_data_save = np.array(self.ati_data_save)
                     mocap_data_save = np.array(self.mocap_data_save)
 
-                    np.savez("raw_data/" + str(count), q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, ur5e_cmd_data_save = ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
+                    np.savez("raw_data_4/" + str(count), q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, ur5e_cmd_data_save = ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
 
                     count += 1
 
@@ -175,13 +229,6 @@ class UR5e_CollectData(Node):
 
             self.rtde_c.waitPeriod(t_start)
 
-        for i in range(76):
-            self.take_data()
-            time.sleep(dt)
-
-        self.mocap_data_actual = np.copy(self.mocap_data[:3, 2])    
-        print(self.mocap_data_actual)
-
         for i in range(500):
             self.take_data()
             time.sleep(dt)
@@ -190,20 +237,29 @@ class UR5e_CollectData(Node):
 
         self.go_to_home()
 
+    def zero_ati(self):
+        ati_data = []
+        for _ in range(100):
+            if self.ati_data is None: continue 
+            ati_data.append(self.ati_data)
+            time.sleep(0.01)
+
+        self.ati_data_zero = np.mean(np.array(ati_data), axis = 0)
+        print(self.ati_data_zero)
+
     def reset_rope(self):
         p = np.copy(self.home_cart_pose)
-        p[2] -= 0.04
+        p[2] -= 0.045
         self.rtde_c.moveL(p, speed = 0.01, acceleration = 0.01)
 
         time.sleep(0.5)
 
         p = np.copy(self.home_cart_pose)
-        self.rtde_c.moveL(p, speed = 0.002, acceleration = 0.01)
+        self.rtde_c.moveL(p, speed = 0.005, acceleration = 0.01)
         time.sleep(2)
 
-    def __del__(self):
-        self.rtde_c.disconnect()
-        self.rtde_r.disconnect()
+        # zero ati
+        self.zero_ati()
 
 def main(args=None):
     rclpy.init(args=args)

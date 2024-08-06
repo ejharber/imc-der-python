@@ -19,9 +19,6 @@ from mocap4r2_msgs.msg import RigidBodies
 import time
 import os
 import threading
-import sys
-from scipy.spatial import distance, ConvexHull
-from deap import base, creator, tools, algorithms  # Import DEAP components
 
 sys.path.append("../UR5e")
 from CustomRobots import *
