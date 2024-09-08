@@ -11,7 +11,7 @@ from scipy.optimize import differential_evolution
 
 def cost_fun(params, q0_save, qf_save, traj_pos_save, traj_force_save, display=False):
 
-    rope = Rope(params, compression=True)
+    rope = Rope(params)
 
     # q0_save = data["q0_save"]
     # qf_save = data["qf_save"]
