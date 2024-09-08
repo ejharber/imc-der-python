@@ -103,18 +103,18 @@ class Rope(object):
 
         force_nonintertial = non_inertial_forces_with_euler(mass, forces_inertial, a_frame, omega, angular_acceleration, positions, velocities).T
 
-        print(f_original.shape)
-        print(force_nonintertial.shape)
+        # print(f_original.shape)
+        # print(force_nonintertial.shape)
 
         force_nonintertial = force_nonintertial[0, -500:] - force_nonintertial[0, 100] # zero forces similar to how we really use the sensor
         f_original = f_original[0, -500:] - f_original[0, 100]
 
-        print(f_original.shape)
-        print(force_nonintertial.shape)
-        plt.plot(force_nonintertial.T, label='noninertial')
-        plt.plot(f_original.T, label='intertial')
-        plt.legend()
-        plt.show()
+        # print(f_original.shape)
+        # print(force_nonintertial.shape)
+        # plt.plot(force_nonintertial.T, label='noninertial')
+        # plt.plot(f_original.T, label='intertial')
+        # plt.legend()
+        # plt.show()
 
         traj_pos = q_save[-2:, -500:] # trajectory of tip
 

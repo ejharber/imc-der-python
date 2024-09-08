@@ -13,7 +13,7 @@ def run_simulation(x0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1
     # try:
     return _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u)
     # except:
-        # return [], [], [], False
+        # return [], [], [], False, []
 
 @jit(cache=True, nopython=True)
 def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
