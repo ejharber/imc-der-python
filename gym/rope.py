@@ -10,7 +10,7 @@ import matplotlib.animation as animation
 import imageio
 
 class Rope(object):
-    def __init__(self, X, compression):
+    def __init__(self, X):
 
         self.UR5e = UR5eCustom()
 
@@ -27,19 +27,49 @@ class Rope(object):
         self.Kb1 = X[3]
         self.Kb2 = X[4]
         self.Ks1 = X[5]
-        self.Ks2_p = X[6]
-        self.Ks2_m = X[7]
-        self.damp = X[8]
-        self.m1 = X[9]
-        self.m2 = X[10]
-        self.m3 = X[11]
-
-        self.compression = compression
+        self.Ks2 = X[6]
+        self.damp = X[7]
+        self.m1 = X[8]
+        self.m2 = X[9]
+        self.m3 = X[10]
 
         self.x0 = None
         self.u0 = None
 
     def run_sim(self, q0, qf):
+        def non_inertial_forces_with_euler(mass, forces_inertial, a_frame, omega, angular_acceleration, positions, velocities):
+            """
+            Calculate forces in a non-inertial frame over N time steps, including Euler forces.
+
+            :param mass: Mass of the point mass
+            :param forces_inertial: Array of forces in the inertial frame over time (shape [N, 2])
+            :param a_frame: Acceleration of the non-inertial frame over time (shape [N, 2])
+            :param omega: Angular velocity of the non-inertial frame over time (shape [N])
+            :param angular_acceleration: Angular acceleration of the non-inertial frame over time (shape [N])
+            :param positions: Array of position vectors in the non-inertial frame over time (shape [N, 2])
+            :param velocities: Array of velocity vectors in the non-inertial frame over time (shape [N, 2])
+            :return: Array of total forces in the non-inertial frame over time (shape [N, 2])
+            """
+            N = len(forces_inertial)
+            F_non_inertial = np.zeros((N, 2))  # Initialize the output array
+            
+            for i in range(N):
+                # Fictitious forces
+                F_fictitious = -mass * a_frame[i]
+                
+                # Coriolis force: -2m(ω × v)
+                F_coriolis = -2 * mass * np.cross([0, 0, omega[i]], [velocities[i, 0], velocities[i, 1], 0])[:2]
+                
+                # Centrifugal force: -m(ω × (ω × r))
+                F_centrifugal = -mass * np.cross([0, 0, omega[i]], np.cross([0, 0, omega[i]], [positions[i, 0], positions[i, 1], 0]))[:2]
+                
+                # Euler force: -m(dω/dt × r)
+                F_euler = -mass * np.cross([0, 0, angular_acceleration[i]], [positions[i, 0], positions[i, 1], 0])[:2]
+                
+                # Total force in the non-inertial frame
+                F_non_inertial[i] = forces_inertial[i] + F_fictitious + F_coriolis + F_centrifugal + F_euler
+            
+            return F_non_inertial
 
         self.reset()
 
@@ -53,37 +83,42 @@ class Rope(object):
         self.x0[::2] += traj[0, 0]
         self.x0[1::2] += traj[0, 1]
 
-        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL0, self.dL1, self.dL2, self.g, self.Kb1, self.Kb2, self.Ks1, self.Ks2_p, self.Ks2_m, self.damp, self.m1, self.m2, self.m3, traj_u = traj_u, compression=self.compression)
+        f_save, q_save, u_save, success, f_original = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL0, self.dL1, self.dL2, self.g, self.Kb1, self.Kb2, self.Ks1, self.Ks2, self.damp, self.m1, self.m2, self.m3, traj_u = traj_u)
 
         if not success:
             return False, [], [], [], []
 
-        # force_x = np.sum(f_save[5::2, -500:], axis = 0)
-        # force_y = np.sum(f_save[4::2, -500:], axis = 0)
+        positions = q_save[[2,3], :].T
+        velocities = u_save[[2,3], :].T
+        a_frame = np.gradient(velocities, axis=0)
 
-        # force_x = np.sum(f_save[5::2, :], axis = 0)
-        # force_y = np.sum(f_save[4::2, :], axis = 0)
-        # force_x = force_x - force_x[199]
-        # force_y = force_y - force_y[199]
-        # print(f_save.shape)
-        traj_force = f_save - f_save[:, 100]
-        # print(traj_force.shape)
-        traj_force = traj_force[:, -500:]
-        # print(traj_force.shape)
-        # force_y = f_save[3, :] - f_save[3, 100]
-        # traj_force = np.array([force_x, force_y])
-        # plt.plot(traj_force.T)
-        # plt.show()
-        # exit()
-        # plt.pl
+        angle = q_save[[4,5], :].T - positions
+        angle = np.arctan2(angle[:, 1], angle[:, 0])
+        omega = np.gradient(angle, axis=0)
+        angular_acceleration = np.gradient(omega, axis=0)
 
-        # force_x = force_x_ * np.cos(traj[:, 2]) - force_y_ * np.sin(traj[:, 2])
-        # force_y = force_x_ * np.sin(traj[:, 2]) + force_y_ * np.cos(traj[:, 2])
+        forces_inertial = f_save[[2,3], :].T
 
-        traj_pos = q_save[-2:, -500:] 
-        # print(traj)
+        mass = self.m1
 
-        return success, traj_pos.T, traj_force.T, q_save.T, f_save.T
+        force_nonintertial = non_inertial_forces_with_euler(mass, forces_inertial, a_frame, omega, angular_acceleration, positions, velocities).T
+
+        print(f_original.shape)
+        print(force_nonintertial.shape)
+
+        force_nonintertial = force_nonintertial[0, -500:] - force_nonintertial[0, 100] # zero forces similar to how we really use the sensor
+        f_original = f_original[0, -500:] - f_original[0, 100]
+
+        print(f_original.shape)
+        print(force_nonintertial.shape)
+        plt.plot(force_nonintertial.T, label='noninertial')
+        plt.plot(f_original.T, label='intertial')
+        plt.legend()
+        plt.show()
+
+        traj_pos = q_save[-2:, -500:] # trajectory of tip
+
+        return success, traj_pos.T, force_nonintertial.T, q_save.T, f_save.T
 
     def reset(self, seed = None):
 

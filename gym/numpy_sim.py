@@ -2,7 +2,7 @@
 import numpy as np
 from numba import jit
 
-def run_simulation(x0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m, damp, m1, m2, m3, traj_u, compression):
+def run_simulation(x0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
     # Initial DOF vector
     # Initial Position
     q0 = np.array([x0]).T
@@ -10,13 +10,13 @@ def run_simulation(x0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m,
     # Initial velocity
     u0 = np.array([u0]).T
 
-    try:
-        return _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m, damp, m1, m2, m3, traj_u, compression)
-    except:
-        return [], [], [], False
+    # try:
+    return _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u)
+    # except:
+        # return [], [], [], False
 
 @jit(cache=True, nopython=True)
-def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m, damp, m1, m2, m3, traj_u, compression):
+def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2, damp, m1, m2, m3, traj_u):
     # :param Kb: the bending stiffness. (1e-8, 1), (1e5, 1e9)
     # :param Ks: the streching stiffness.
 
@@ -27,15 +27,10 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m
     Kb[2:] = Kb2
 
     # non-Homoegneous Ks
-    Ks_p = np.zeros((N-1))
-    Ks_p[0] = Ks1
-    Ks_p[1] = Ks1
-    Ks_p[2:] = Ks2_p
-
-    Ks_m = np.zeros((N-1))
-    Ks_m[0] = Ks1
-    Ks_m[1] = Ks1
-    Ks_m[2:] = Ks2_m
+    Ks = np.zeros((N-1))
+    Ks[0] = Ks1
+    Ks[1] = Ks1
+    Ks[2:] = Ks2
 
     # non-Homogenous Lengths
     dL = np.zeros((N-1))
@@ -65,7 +60,8 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m
     f = 0
     deltaL1 = 0.0
 
-    f_save = np.zeros((1, traj_u.shape[1]))
+    f_save = np.zeros((q0.shape[0], traj_u.shape[1]))
+    f_original = np.zeros((1, traj_u.shape[1]))
     q_save = np.zeros((q0.shape[0], traj_u.shape[1]))
     u_save = np.zeros((u0.shape[0], traj_u.shape[1]))
 
@@ -110,11 +106,13 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m
             if iteration >= max_iteration:
                 print("max iter reached")
                 print(err)
-                return f_save, q_save, u_save, False
+                return f_save, q_save, u_save, False, f_original
 
             # Inertia
             # use @ for matrix multiplication else it's element wise
             f = M / dt @ ((q - q0) / dt - u0)  # inside() is new - old velocity, @ mKsns matrix multiplication
+            force_intertial = f
+
             J = M / dt ** 2.0
 
             # Weight
@@ -123,6 +121,8 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m
             # Viscous force
             f = f + damp * (q - q0) / dt
             J = J + damp / dt
+
+            f_save[:, c] = np.copy(f[:, 0])
 
             # Elastic forces
             k = 0  # do the first node or edge outside the loop
@@ -135,8 +135,8 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m
             xkp1 = q[indeces[2]].item()  # xk plus 1
             ykp1 = q[indeces[3]].item()
 
-            dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks_p[k])
-            dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks_p[k])
+            dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
+            dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
             indeces = np.array(indeces)
             f[indeces] = f[indeces] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
             J[indeces[0]:indeces[3] + 1, indeces[0]:indeces[3] + 1] = J[indeces[0]:indeces[3] + 1,
@@ -158,11 +158,9 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m
                 deltaY = (yk - ykp1)
                 if k == 1:
                     deltaL1 = np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5)
-                    f_save[:, c] = ((deltaL1-dL[1])*Ks_p[1])
+                    f_original[:, c] = ((deltaL1-dL[1])*Ks[1])
 
-                local_Ks = Ks_p[k]
-                if np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5) < dL[k]:
-                    local_Ks = Ks_m[k]
+                local_Ks = Ks[k]
 
                 # linear spring between nodes k and k + 1
                 dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], local_Ks)
@@ -193,7 +191,7 @@ def _run_simulation(q0, u0, N, dt, dL0, dL1, dL2, g, Kb1, Kb2, Ks1, Ks2_p, Ks2_m
         q_save[:, c] = q[:,0]
         u_save[:, c] = u0[:,0]
 
-    return f_save, q_save, u_save, True
+    return f_save, q_save, u_save, True, f_original
 
 @jit(cache=True, nopython=True)
 def cross_mat(a):
