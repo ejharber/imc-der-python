@@ -43,7 +43,7 @@ class UR5e_CollectData(Node):
         self.home_cart_pose = None
 
         # ati cb
-        self.ati_subscription = self.create_subscription(WrenchStamped, '/FT39143', self.ati_callback, 10)
+        self.ati_subscription = self.create_subscription(WrenchStamped, '/FT10881', self.ati_callback, 10)
         self.ati_data = None
         self.ati_data_zero = None
 
@@ -51,22 +51,28 @@ class UR5e_CollectData(Node):
         self.mocap_subscription = self.create_subscription(RigidBodies, '/rigid_bodies', self.mocap_callback, 10)
         self.mocap_data = None
 
-        # Image subscriber
-        self.subscription = self.create_subscription(
-            Image,
-            'camera/raw_image',
-            self.image_callback,
-            1)
-        self.bridge = CvBridge()
+        # # Image subscriber
+        # self.subscription = self.create_subscription(
+        #     Image,
+        #     'camera/raw_image',
+        #     self.image_callback,
+        #     1)
+        # self.bridge = CvBridge()
 
         # Create scalable OpenCV window
-        cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
+        # cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
 
         self.ati_data_save = []
         self.mocap_data_save = []
         self.ur5e_cmd_data_save = []
         self.ur5e_tool_data_save = []
         self.ur5e_jointstate_data_save = []
+
+        timer_period = 0.002
+        self.timer = self.create_timer(timer_period, self.timer_callback)
+
+    def timer_callback(self):
+        pass
 
     def ati_callback(self, msg):
         self.ati_data = [msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z, msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z]
@@ -95,13 +101,9 @@ class UR5e_CollectData(Node):
         try:
             img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
 
-            imgpoints, _ = cv2.projectPoints(self.mocap_data_goal, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
-            for i in range(imgpoints.shape[0]):
-                img = cv2.circle(img, (int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])), 3, (255,0,0), -1)
-
-            imgpoints, _ = cv2.projectPoints(self.mocap_data_actual, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
-            for i in range(imgpoints.shape[0]):
-                img = cv2.circle(img, (int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])), 3, (0,0,255), -1)
+            # imgpoints, _ = cv2.projectPoints(self.mocap_data, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
+            # for i in range(imgpoints.shape[0]):
+            #     img = cv2.circle(img, (int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])), 3, (0,0,255), -1)
 
             cv2.imshow("Image", img)
             cv2.waitKey(1)
@@ -136,14 +138,16 @@ class UR5e_CollectData(Node):
     def take_data_routine(self):
 
         # Initialize Matplotlib in interactive mode
-        plt.ion()
-        self.fig, self.ax = plt.subplots()
+        # plt.ion()
+        # self.fig, self.ax = plt.subplots()
 
-        self.line, = self.ax.plot([], [], 'r-')  # Initialize an empty plot
+        # self.line, = self.ax.plot([], [], 'r-')  # Initialize an empty plot
         self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
         self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
-        N = 4 # take for 3 "levels" of experiments
+        print("take data")
+
+        N = 3 # take for 3 "levels" of experiments
         # 2^3 = 8
         # 3^3 = 27
         # 4^3 = 64
@@ -160,9 +164,9 @@ class UR5e_CollectData(Node):
             for dq2 in np.linspace(-10, 10, N):
                 for dq3 in np.linspace(-12, 12, N):
 
-                    if count < 58:
-                        count += 1
-                        continue
+                    # if count < 50:
+                    #     count += 1
+                    #     continue
 
                     for trail in range(10):
 
@@ -177,11 +181,12 @@ class UR5e_CollectData(Node):
                         qf = [qf[0], dq1 + qf[1], dq2 + qf[2], dq3 + qf[3], qf[4], 0]
 
                         self.rope_swing(qf)
-                        if not np.any(np.array(self.mocap_data_save)[400:1100, :, 2] == 0):
-                            break
 
+                        if not np.any(np.array(self.mocap_data_save)[400:1100, :, :2] == 0): # need to change back to tip
+                            break
                         else:
                             print('failed')
+                        # break
 
                     # self.update_plot()
 
@@ -193,9 +198,12 @@ class UR5e_CollectData(Node):
                     ati_data_save = np.array(self.ati_data_save)
                     mocap_data_save = np.array(self.mocap_data_save)
 
-                    np.savez("raw_data_4/" + str(count), q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, ur5e_cmd_data_save = ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
+                    np.savez("raw_data_N3_2/" + str(count), q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, ur5e_cmd_data_save = ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
 
                     count += 1
+
+        print('done')
+        exit()
 
     def rope_swing(self, q):
 
@@ -224,7 +232,6 @@ class UR5e_CollectData(Node):
             q = traj[:, i]
 
             self.rtde_c.servoJ(q, velocity, acceleration, dt, lookahead_time, gain)
-
             self.take_data()
 
             self.rtde_c.waitPeriod(t_start)

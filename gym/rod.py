@@ -1,5 +1,5 @@
 import numpy as np
-from numpy_rope_sim import *
+from numpy_rod_sim import *
 
 import sys
 sys.path.append("../UR5e")
@@ -9,42 +9,48 @@ from matplotlib import pyplot as plt, patches
 import matplotlib.animation as animation
 import imageio
 
-class Rope(object):
+class Rod(object):
     def __init__(self, X):
 
         self.UR5e = UR5eCustom()
 
         ## Model Parameters (Calculated)
-        self.N = 10
+        self.N = 2
         self.dt = 0.002 # we are collecting data at 500 hz
         self.sample_rate = 0.002
-        self.g = 9.8
-        self.radius = 0.05
+        self.g = 9.81
+        self.radius = 0.05 # only used in visualization 
 
         ## Physics Parameters
         self.dL_stick = X[0]
-        self.dL_ati = X[1] # should replace this with an array         
-        self.dL_rope = X[2]
-        self.Kb = X[3]
-        self.Ks = X[4]
-        self.damp = X[5]
-        self.m_holder = X[6]
-        self.m_rope = X[7]
-        self.m_tip = X[8]
+        self.dL_ati = X[1]
+        self.damp = X[2] 
+        self.m1 = X[3]
 
         self.x0 = None
         self.u0 = None
 
     def run_sim(self, q0, qf):
-        def non_inertial_forces_with_euler(mass, damp, v_frame, a_frame, angle, omega, angular_acceleration, positions, velocities):
+        def non_inertial_forces_with_euler(mass, damp, forces_inertial, v_frame, a_frame, angle, omega, angular_acceleration, positions, velocities):
+            """
+            Calculate forces in a non-inertial frame over N time steps, including Euler forces.
 
-            N = len(v_frame)
+            :param mass: Mass of the point mass
+            :param forces_inertial: Array of forces in the inertial frame over time (shape [N, 2])
+            :param a_frame: Acceleration of the non-inertial frame over time (shape [N, 2])
+            :param omega: Angular velocity of the non-inertial frame over time (shape [N])
+            :param angular_acceleration: Angular acceleration of the non-inertial frame over time (shape [N])
+            :param positions: Array of position vectors in the non-inertial frame over time (shape [N, 2])
+            :param velocities: Array of velocity vectors in the non-inertial frame over time (shape [N, 2])
+            :return: Array of total forces in the non-inertial frame over time (shape [N, 2])
+            """
+            N = len(forces_inertial)
             F_non_inertial = np.zeros((N, 2))  # Initialize the output array
 
             for i in range(N):
 
                 R = np.array([[np.cos(angle[i]), -np.sin(angle[i])], 
-                         [np.sin(angle[i]),  np.cos(angle[i])]]).T
+                         [np.sin(angle[i]),  np.cos(angle[i])]]) . T
 
                 # Fictitious forces
                 F_fictitious = - mass * R @ a_frame[i]
@@ -61,12 +67,15 @@ class Rope(object):
                 # gravitational force: 
                 F_graviatational = R @ np.array([0, -9.81 * mass])      
 
-                # dampening force:
                 F_damp = - damp * R @ v_frame[i]
                 
-                F_non_inertial[i] = F_graviatational + F_damp + F_fictitious - F_centrifugal - F_euler - F_coriolis
+                # Total force in the non-inertial frame
+                forces_inertial[i] = R @ forces_inertial[i]
 
-            return F_non_inertial.T
+                # F_non_inertial[i] = forces_inertial[i] - F_fictitious - F_centrifugal - F_euler - F_coriolis
+                F_non_inertial[i] = F_graviatational + F_damp + F_fictitious # - F_centrifugal - F_euler - F_coriolis - F_damp
+
+            return F_non_inertial.T, forces_inertial.T
 
         self.reset()
 
@@ -76,10 +85,11 @@ class Rope(object):
 
         traj = traj.T
 
+        # print(traj.shape, traj.shape)
         self.x0[::2] += traj[0, 0]
         self.x0[1::2] += traj[0, 1]
 
-        q_save, u_save, f_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.dL_rope, self.Kb, self.Ks, self.damp, self.m_holder, self.m_rope, self.m_tip, traj)
+        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.g, self.damp, self.m1, traj)
 
         if not success:
             return False, [], [], [], []
@@ -101,25 +111,21 @@ class Rope(object):
         omega = np.gradient(angle, axis=0, edge_order=2) / self.dt
         angular_acceleration = np.gradient(omega, axis=0, edge_order=2) / self.dt
 
-        # forces_inertial = f_save[[2, 3], 2:].T
+        forces_inertial = f_save[[2, 3], 2:].T
 
-        force_nonintertial = non_inertial_forces_with_euler(self.m_holder, self.damp, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
+        force_nonintertial, forces_inertial = non_inertial_forces_with_euler(self.m1, self.damp, forces_inertial, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
 
         sampling = round(self.sample_rate / self.dt)
-        # forces_inertial = forces_inertial[:, ::sampling]
+        forces_inertial = forces_inertial[:, ::sampling]
         force_nonintertial = force_nonintertial[:, ::sampling]
         q_save = q_save[:, ::sampling]
         f_save = f_save[:, ::sampling]
         traj_pos = q_save[-2:, -500:] # trajectory of tip
 
-        # forces_inertial = np.atleast_2d(forces_inertial[0, -500:] - forces_inertial[0, -499])
-
-        force_nonintertial = force_nonintertial[0, -500:]
-        f_save = f_save[1, -500:]
-        f_total = force_nonintertial + f_save
-        f_total = np.atleast_2d(f_total - f_total[0]) # zero forces similar to how we really use the sensor
-
-        return success, traj_pos.T, f_total.T, force_nonintertial.T, q_save.T, f_save.T
+        force_nonintertial = np.atleast_2d(force_nonintertial[0, -500:] - force_nonintertial[0, -499]) # zero forces similar to how we really use the sensor
+        forces_inertial = np.atleast_2d(forces_inertial[0, -500:] - forces_inertial[0, -499])
+        
+        return success, traj_pos.T, force_nonintertial.T, forces_inertial.T, q_save.T, f_save.T
 
     def reset(self, seed = None):
 
@@ -127,8 +133,6 @@ class Rope(object):
         for k in range(1, self.N):
             if k == 1:
                 self.x0[k, 1] = self.dL_stick
-            else:
-                self.x0[k, 1] = self.x0[k-1, 1] - self.dL_rope
 
         self.x0 = self.x0.flatten()
         self.u0 = np.zeros(self.N*2)

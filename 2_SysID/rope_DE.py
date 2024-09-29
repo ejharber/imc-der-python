@@ -11,6 +11,7 @@ from scipy.optimize import differential_evolution
 
 def cost_fun(params, q0_save, qf_save, traj_pos_save, traj_force_save, display=False):
 
+    params = np.power(10, params)
     rope = Rope(params)
 
     # q0_save = data["q0_save"]
@@ -34,10 +35,12 @@ def cost_fun(params, q0_save, qf_save, traj_pos_save, traj_force_save, display=F
         success, traj_pos_sim, traj_force_sim, q_save, _ = rope.run_sim(q0, qf)
 
         if not success:
-            return 1e8
+            return 1e1
 
+        # print(traj_force_sim)
         cost_mocap += np.linalg.norm(traj_pos - traj_pos_sim) 
         norm_mocap += np.linalg.norm(traj_pos) 
+        # print(traj_force.shape, traj_force_sim.shape)
         cost_ati += np.linalg.norm(traj_force - traj_force_sim)
         norm_ati += np.linalg.norm(traj_force)       
 
@@ -54,9 +57,9 @@ def cost_fun(params, q0_save, qf_save, traj_pos_save, traj_force_save, display=F
 
             plt.show()
 
-    cost = cost_mocap / norm_mocap + cost_ati / norm_ati
+    # cost = cost_mocap / norm_mocap + cost_ati / norm_ati
     # cost = cost_mocap / norm_mocap
-    # cost = cost_ati / norm_ati
+    cost = cost_ati / norm_ati
 
     print(cost)
 
@@ -64,11 +67,8 @@ def cost_fun(params, q0_save, qf_save, traj_pos_save, traj_force_save, display=F
 
 if __name__ == "__main__":
 
-    # params = [0.05, 0.05, 0.05, 1e1, 1e-2, 1e5, 1e7, 0.15, 0.01, 0.01, 0.01]
-    # print(cost_fun(params, True))
-
     folder_name = "filtered_data"
-    file = "2.npz"
+    file = "intertial_tests.npz"
     file_name = folder_name + "/" + file
 
     data = np.load(file_name)
@@ -78,18 +78,23 @@ if __name__ == "__main__":
     traj_pos_save = data["traj_pos_save"]
     traj_force_save = data["traj_force_save"]
 
+    params = [0.005, 0.005, 0.05, 1e1, 1e-2, 1e5, 1e7, 0.01, 0.01, 0.005, 0.03]
+    params = np.log10(np.array(params))
+    # print(cost_fun(params, q0_save, qf_save, traj_pos_save, traj_force_save, True))
+
+    bounds = [(1e-3, 0.05), (1e-3, 0.05), (0.03, 0.05), (1e-2, 1e3), (1e-2, 1e3), (1e1, 1e8), (1e1, 1e8), (1e-5, 1), (1e-3, 1e-1), (1e-5, 1e-2), (1e-3, 1e-1)]
+    bounds = np.log10(bounds)
     res = differential_evolution(cost_fun, args=[q0_save, qf_save, traj_pos_save, traj_force_save],                # the function to minimize
-                                 bounds=[(1e-5, 1e-1), (1e-5, 1e-1), (1e-5, 1e-1), (1e-8, 1e4), (1e-8, 1e4), (1e1, 1e7), (1e1, 1e7), (1e1, 1e7), (1e-5, 1e1), (1e-5, 1e-1), (1e-5, 1e-1), (1e-5, 1e-1)],
-                                 maxiter=2000,
-                                 workers=32,
+                                 bounds=bounds,
+                                 maxiter=1000,
+                                 workers=31,
                                  updating="deferred",
                                  init='sobol',
                                  popsize=100,
-                                 tol=0.00001,
+                                 tol=0.0001,
                                  disp=True)   # the random seed
 
-    print(res)
+    params = res.x
+    params = np.power(10, params)
 
-    np.savez("params/params_compression", x=res.x)
-    # np.savez("res_pose", x=res.x)
-    # np.savez("res_all_20", x=res.x)
+    np.savez("params/params_nonintertial", params=params)

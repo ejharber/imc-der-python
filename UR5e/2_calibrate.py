@@ -17,7 +17,7 @@ from CustomRobots import *
 
 UR5e = UR5eCustom()
 
-data = np.load("calibration_data.npz")
+data = np.load("raw_data/calibration_data.npz")
 
 ur5e_joint_data = data["ur5e_joint_data"]
 

@@ -34,7 +34,7 @@ class UR5eCustom(Robot):
         self.addconfiguration("qr", self.qr)
         self.addconfiguration("qz", self.qz)
 
-    def create_trajectory(self, q0, qf, time=1):
+    def create_trajectory(self, q0, qf, time=1, dt = 0.002):
         def quintic_func(q0, qf, T, qd0=0, qdf=0):
             X = [
                 [ 0.0,          0.0,         0.0,        0.0,     0.0,  1.0],
@@ -70,20 +70,27 @@ class UR5eCustom(Robot):
             pd = traj[1]
             pdd = traj[2]
 
-            return p
+            return p, pd, pdd
 
         weighpoints = [[q0[i], qf[i]] for i in range(6)]
         weighpoints = np.array(weighpoints)
 
         traj = []
+        traj_u = []
+        traj_a = []
 
         for dim in range(weighpoints.shape[0]):
             x_1_traj = [0, time]
             x_2_traj = [weighpoints[dim, 0], weighpoints[dim, 1]]
-            t = np.linspace(0, time, round(time*500))
-            traj.append(quintic(x_2_traj[0], x_2_traj[1], t))
+            t = np.linspace(0, time, round(time/dt))
+            p, pd, pdd = quintic(x_2_traj[0], x_2_traj[1], t)
+            traj.append(p)
+            traj_u.append(pd)
+            traj_a.append(pdd)
 
         traj = np.array(traj) * np.pi / 180.0
+        traj_u = np.array(traj_u) * np.pi / 180.0
+        traj_a = np.array(traj_a) * np.pi / 180.0
 
         return traj
 
@@ -103,7 +110,8 @@ class UR5eCustom(Robot):
             if two_dimention:
                 if zero_pose is None:
                     zero_pose = np.copy(orientation)
-                orientation = np.array([getAngle(zero_pose, orientation)])
+                pose = [pose[0], pose[2]]
+                orientation = np.array([getAngle(zero_pose, orientation)]) - np.pi/2
 
             else:
                 orientation = R.from_matrix(orientation).as_rotvec()
@@ -139,7 +147,7 @@ class UR5eCustom(Robot):
                 if zero_pose is None:
                     zero_pose = np.copy(orientation)
                 pose = [pose[0], pose[2]]
-                orientation = np.array([getAngle(zero_pose, orientation)])
+                orientation = np.array([getAngle(zero_pose, orientation)]) - np.pi/2
 
             else:
                 orientation = R.from_matrix(orientation).as_rotvec()

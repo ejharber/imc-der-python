@@ -17,11 +17,12 @@ from CustomRobots import *
 import numpy as np 
 from scipy.optimize import differential_evolution
 
-data = np.load("models/params_compression.npz")
+data = np.load("params/params_original.npz")
 print(data["x"])
 params = data["x"]
+params = np.power(10, params)
 
-rope = Rope(params, compression=True)
+rope = Rope(params)
 
 folder_name = "filtered_data"
 file = "2.npz"
@@ -65,7 +66,7 @@ for i in range(q0_save.shape[0]):
 
     plt.show()
 
-    # exit()
+    exit()
 
 print(norm_ati, norm_mocap)
 

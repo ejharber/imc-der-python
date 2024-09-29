@@ -31,7 +31,7 @@ class UR5EMocapCalibration(Node):
 
         self.calibration_routine()
 
-        np.savez("calibration_data", ur5e_joint_data = self.ur5e_joint_data, mocap_base_data = self.mocap_base_data, mocap_ee_data = self.mocap_ee_data, ur5e_ee_data = self.ur5e_ee_data)
+        np.savez("raw_data/calibration_data", ur5e_joint_data = self.ur5e_joint_data, mocap_base_data = self.mocap_base_data, mocap_ee_data = self.mocap_ee_data, ur5e_ee_data = self.ur5e_ee_data)
 
     def take_data(self):
         self.mocap_last_msg = None
