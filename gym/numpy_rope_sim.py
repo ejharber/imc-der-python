@@ -15,7 +15,7 @@ def run_simulation(x0, u0, N, dt, dL_stick, dL_rope, Kb, Ks, damp, m_holder, m_r
     # except:
         # return [], [], [], False, []
 
-# @jit(cache=True, nopython=True)
+@jit(cache=True, nopython=True)
 def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_holder, m_rope, m_tip, traj):
     # :param Kb: the bending stiffness. (1e-8, 1), (1e5, 1e9)
     # :param Ks: the streching stiffness.
@@ -56,22 +56,17 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
     f = 0
     deltaL1 = 0.0
 
-    f_save = np.zeros((q0.shape[0]//2, traj.shape[1]))
+    f_save = np.zeros((q0.shape[0], traj.shape[1]))
     q_save = np.zeros((q0.shape[0], traj.shape[1]))
     u_save = np.zeros((u0.shape[0], traj.shape[1]))
 
     for c in range(traj.shape[1]):  # current time step is t_k+1 bc we start at a time of dt
 
         q = np.copy(q0)  # initial guess for newton raphson is the last dof vector
+
         q[:2, 0] = traj[:2, c]
         q[2, 0] = traj[0, c] + np.cos(traj[2, c]) * dL[0]
         q[3, 0] = traj[1, c] + np.sin(traj[2, c]) * dL[0]
-
-        # constraining the distance between the two constraints 
-        # only required do to floating point error
-        q_ = q[:2] - q[2:4]
-        q_ = q_ / np.linalg.norm(q_) * dL[0]
-        q[2:4] = q[:2] - q_
 
         q_free = q[free_bot:free_top]
 
@@ -79,7 +74,7 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
         err = 10 * tol
 
         iteration = 0
-        max_iteration = 100
+        max_iteration = 1000
 
         # o - o - o - o - o .. o
         # ^   ^                   constrained to ur5e
@@ -94,7 +89,7 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
 
             iteration += 1
             if iteration >= max_iteration:
-                # print("max iter reached")
+                print("max iter reached")
                 # print(c, err)
                 return f_save, q_save, u_save, False
 
@@ -102,14 +97,13 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
             f = M / dt @ ((q - q0) / dt - u0)  # inside() is new - old velocity, @ mKsns matrix multiplication
             J = M / dt ** 2.0
 
-            # # Weight
+            # Weight
             f = f - W
 
             # # Viscous force
             f = f - damp * (q - q0) / dt
             J = J - damp / dt
 
-            # f_save[:, c] = np.copy(f[:, 0])
             k = 0
             # Linear spring between nodes k and k + 1
             indeces = [2*k, 2*k+1, 2*k+2, 2*k+3]
@@ -121,7 +115,6 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
             dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])                
             dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
             indeces = np.array(indeces)
-            # f_save[indeces, c] = f_save[indeces, c] + dFs
             f[indeces] = f[indeces] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
             J[indeces[0]:indeces[3] + 1, indeces[0]:indeces[3] + 1] = J[indeces[0]:indeces[3] + 1,
                                                                       indeces[0]:indeces[3] + 1] + dJs
@@ -144,6 +137,7 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
                 if k == 1:
                     deltaL1 = np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5)
                     f_save[k, c] = ((deltaL1-dL[k])*Ks[k])
+                    # print(deltaL1, deltaX, deltaY, dL[k], Ks[k], f_save[k, c])
 
                 # linear spring between nodes k and k + 1
                 dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])

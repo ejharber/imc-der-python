@@ -77,12 +77,12 @@ class Rope(object):
         traj = traj.T
 
         self.x0[::2] += traj[0, 0]
-        self.x0[1::2] += traj[0, 1]
+        self.x0[1::2] += traj[1, 0]
 
         q_save, u_save, f_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.dL_rope, self.Kb, self.Ks, self.damp, self.m_holder, self.m_rope, self.m_tip, traj)
 
         if not success:
-            return False, [], [], [], []
+            return False, [], [], [], [], [], []
 
         p_frame = traj[[0,1], :]
         p_frame[0, :] += np.cos(traj[2, :]) * self.dL_ati
@@ -101,32 +101,30 @@ class Rope(object):
         omega = np.gradient(angle, axis=0, edge_order=2) / self.dt
         angular_acceleration = np.gradient(omega, axis=0, edge_order=2) / self.dt
 
-        # forces_inertial = f_save[[2, 3], 2:].T
-
-        force_nonintertial = non_inertial_forces_with_euler(self.m_holder, self.damp, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
+        f_base = non_inertial_forces_with_euler(self.m_holder, self.damp, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
 
         sampling = round(self.sample_rate / self.dt)
-        # forces_inertial = forces_inertial[:, ::sampling]
-        force_nonintertial = force_nonintertial[:, ::sampling]
+        f_base = f_base[:, ::sampling]
+
         q_save = q_save[:, ::sampling]
         f_save = f_save[:, ::sampling]
         traj_pos = q_save[-2:, -500:] # trajectory of tip
 
         # forces_inertial = np.atleast_2d(forces_inertial[0, -500:] - forces_inertial[0, -499])
 
-        force_nonintertial = force_nonintertial[0, -500:]
-        f_save = f_save[1, -500:]
-        f_total = force_nonintertial + f_save
-        f_total = np.atleast_2d(f_total - f_total[0]) # zero forces similar to how we really use the sensor
+        f_base = np.atleast_2d(f_base[0, -500:])
+        f_rope = np.atleast_2d(f_save[1, -500:])
+        f_total = f_base + f_rope
+        f_total = np.atleast_2d(f_total[0, :] - f_total[0, 0]) # zero forces similar to how we really use the sensor
 
-        return success, traj_pos.T, f_total.T, force_nonintertial.T, q_save.T, f_save.T
+        return success, traj_pos.T, f_total.T, f_base.T, f_rope.T, q_save.T, f_save.T
 
     def reset(self, seed = None):
 
         self.x0 = np.zeros((self.N, 2))
         for k in range(1, self.N):
             if k == 1:
-                self.x0[k, 1] = self.dL_stick
+                self.x0[k, 1] = -self.dL_stick
             else:
                 self.x0[k, 1] = self.x0[k-1, 1] - self.dL_rope
 

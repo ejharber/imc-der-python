@@ -23,7 +23,7 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
         
         success, traj_pos_sim, traj_force_sim_nonintertial, traj_force_sim_intertial, q_save, _ = rod.run_sim(q0, qf)
 
-        # rod.render(q_save, traj_rope_base, traj_pos_sim)
+        rod.render(q_save, traj_rope_base, traj_pos_sim)
 
         plt.figure("pose sim v real world data")
         plt.plot(traj_rope_base, 'r-', label='real world')

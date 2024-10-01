@@ -9,7 +9,7 @@ import numpy as np
 import numpy as np 
 from scipy.optimize import differential_evolution
 
-def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_force_save, display=False):
+def cost_fun(params, q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save, traj_force_save, display=False):
 
     params = np.power(10, params)
     rod = Rod(params[:-1])
@@ -27,8 +27,8 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
 
         q0 = q0_save[i, :]
         qf = qf_save[i, :]
-        traj_robot = traj_robot_save[i, :, :]
-        traj_rope_base = traj_rope_base_save[i, :, :]
+        traj_robot_tool = traj_robot_tool_save[i, 56:556, :]
+        traj_rope_base = traj_rope_base_save[i, 56:556, :]
         # print(traj_force_save.shape)
         traj_force = traj_force_save[i, round(params[-1]):round(params[-1] + 500), :]
         
@@ -40,6 +40,7 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
         norm_ati += np.linalg.norm(traj_force)       
 
         if not success:
+            print(1e2)
             return 1e2
 
         if display:
@@ -74,7 +75,7 @@ if __name__ == "__main__":
 
     data = np.load(file_name)
 
-    traj_robot_save = data["traj_robot_save"]
+    traj_robot_tool_save = data["traj_robot_tool_save"]
     traj_rope_base_save = data["traj_rope_base_save"]
     traj_rope_tip_save = data["traj_rope_tip_save"]    
     traj_force_save = data["traj_force_save"]
@@ -87,7 +88,7 @@ if __name__ == "__main__":
 
     bounds = [(0.2, 0.3), (0.2, 0.3), (1e-6, 10), (0.028, 0.1), (0.1, 200)]
     bounds = np.log10(bounds)
-    res = differential_evolution(cost_fun, args=[q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_force_save],                # the function to minimize
+    res = differential_evolution(cost_fun, args=[q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save, traj_force_save],                # the function to minimize
                                  bounds=bounds,
                                  maxiter=10,
                                  workers=31,

@@ -91,8 +91,8 @@ class Rod(object):
 
         f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.g, self.damp, self.m1, traj)
 
-        if not success:
-            return False, [], [], [], []
+        # if not success:
+        #     return False, [], [], [], []
 
         p_frame = traj[[0,1], :]
         p_frame[0, :] += np.cos(traj[2, :]) * self.dL_ati
@@ -118,8 +118,8 @@ class Rod(object):
         sampling = round(self.sample_rate / self.dt)
         forces_inertial = forces_inertial[:, ::sampling]
         force_nonintertial = force_nonintertial[:, ::sampling]
-        q_save = q_save[:, ::sampling]
-        f_save = f_save[:, ::sampling]
+        # q_save = q_save[:, ::sampling]
+        # f_save = f_save[:, ::sampling]
         traj_pos = q_save[-2:, -500:] # trajectory of tip
 
         force_nonintertial = np.atleast_2d(force_nonintertial[0, -500:] - force_nonintertial[0, -499]) # zero forces similar to how we really use the sensor
@@ -133,6 +133,8 @@ class Rod(object):
         for k in range(1, self.N):
             if k == 1:
                 self.x0[k, 1] = self.dL_stick
+            else:
+                self.x0[k, 1] = self.x0[k - 1, 1] - self.dL_rope
 
         self.x0 = self.x0.flatten()
         self.u0 = np.zeros(self.N*2)
