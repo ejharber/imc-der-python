@@ -89,12 +89,12 @@ if __name__ == "__main__":
     bounds = np.log10(bounds)
     res = differential_evolution(cost_fun, args=[q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_force_save],                # the function to minimize
                                  bounds=bounds,
-                                 maxiter=10,
+                                 maxiter=1000,
                                  workers=31,
                                  updating="deferred",
                                  init='sobol',
                                  popsize=100,
-                                 tol=0.0001,
+                                 tol=0.00001,
                                  disp=True)   # the random seed
 
     params = res.x
