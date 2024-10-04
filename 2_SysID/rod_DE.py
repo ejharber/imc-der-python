@@ -28,8 +28,7 @@ def cost_fun(params, q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save
         q0 = q0_save[i, :]
         qf = qf_save[i, :]
         traj_robot_tool = traj_robot_tool_save[i, 56:556, :]
-        traj_rope_base = traj_rope_base_save[i, 56:556, :]
-        # print(traj_force_save.shape)
+        traj_rope_base = traj_rope_base_save[i, round(params[-1]):round(params[-1] + 500), :]
         traj_force = traj_force_save[i, round(params[-1]):round(params[-1] + 500), :]
         
         success, traj_pos_sim, traj_force_sim_nonintertial, traj_force_sim_intertial, q_save, _ = rod.run_sim(q0, qf)
@@ -86,11 +85,11 @@ if __name__ == "__main__":
     params = np.log10(np.array(params))
     # print(cost_fun(params, q0_save, qf_save, traj_pos_save, traj_force_save, True))
 
-    bounds = [(0.2, 0.3), (0.2, 0.3), (1e-6, 10), (0.028, 0.1), (0.1, 200)]
+    bounds = [(0.01, 0.4), (0.01, 0.4), (1e-6, 10), (0.028, 0.1), (0.1, 200)]
     bounds = np.log10(bounds)
     res = differential_evolution(cost_fun, args=[q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save, traj_force_save],                # the function to minimize
                                  bounds=bounds,
-                                 maxiter=1000,
+                                 maxiter=100,
                                  workers=31,
                                  updating="deferred",
                                  init='sobol',

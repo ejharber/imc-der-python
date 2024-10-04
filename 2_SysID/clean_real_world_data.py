@@ -16,17 +16,17 @@ def clean_data(robot_data, mocap_data, ati_data, q0, qf):
     # print(robot_data.shape)
     traj_robot_tool = robot_data[500:1000, [0 ,2]]
 
-    mocap_data_rope_base = mocap_data[500:1200, :, 1]
+    mocap_data_rope_base = mocap_data[556:1056, :, 1]
     mocap_data_base = mocap_data[500, :, 0]
     mocap_data_rope_base = UR5e.convert_worktraj_to_robot(mocap_data_rope_base, mocap_data_base)
     traj_rope_base = mocap_data_rope_base[:, [0, 2]]
 
-    # plt.figure("pose traj")
-    # plt.plot(traj[:, [0, 1]], 'r-', label='sim')
-    # plt.plot(traj_rope_base, 'b-', label='mocap')
-    # plt.legend()
-    # # plt.show()
-    # exit()
+    plt.figure("pose traj")
+    plt.plot(traj[:, [0, 1]], 'r-', label='sim')
+    plt.plot(traj_rope_base, 'b-', label='mocap')
+    plt.legend()
+    plt.show()
+    exit()
 
     mocap_data_rope = mocap_data[500:1200, :, 2]
     mocap_data_base = mocap_data[500, :, 0]
@@ -56,7 +56,7 @@ def clean_data(robot_data, mocap_data, ati_data, q0, qf):
 def clean_raw_data():
 
     file_path = "../1_DataCollection/"
-    folder_name = "raw_data_inertial_calibration"
+    folder_name = "raw_data_N2"
 
     traj_robot_tool_save = []
     traj_rope_base_save = []
@@ -104,8 +104,8 @@ def clean_raw_data():
 
     print(traj_robot_tool_save.shape, traj_rope_base_save.shape, traj_rope_tip_save.shape, traj_force_save.shape, q0_save.shape, qf_save.shape)
 
-    np.savez("filtered_data/inertial_calibration.npz", traj_robot_tool_save=traj_robot_tool_save, traj_rope_base_save=traj_rope_base_save, traj_rope_tip_save=traj_rope_tip_save, 
-                                                  traj_force_save=traj_force_save, q0_save=q0_save, qf_save=qf_save)
+    # np.savez("filtered_data/N2.npz", traj_robot_tool_save=traj_robot_tool_save, traj_rope_base_save=traj_rope_base_save, traj_rope_tip_save=traj_rope_tip_save, 
+    #                                               traj_force_save=traj_force_save, q0_save=q0_save, qf_save=qf_save)
 
 if __name__ == "__main__":
     clean_raw_data()

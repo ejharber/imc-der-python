@@ -9,7 +9,7 @@ import numpy as np
 import numpy as np 
 from scipy.optimize import differential_evolution
 
-def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_force_save):
+def cost_fun(params, q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save, traj_force_save):
 
     rod = Rod(params[:-1])
 
@@ -17,7 +17,7 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
 
         q0 = q0_save[i, :]
         qf = qf_save[i, :]
-        traj_robot = traj_robot_save[i, :, :]
+        traj_robot_tool = traj_robot_tool_save[i, :, :]
         traj_rope_base = traj_rope_base_save[i, :, :]
         traj_force = traj_force_save[i, round(params[-1]):round(params[-1] + 500), :]
         
@@ -43,12 +43,12 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
 if __name__ == "__main__":
 
     folder_name = "filtered_data"
-    file = "intertial_tests.npz"
+    file = "inertial_calibration.npz"
     file_name = folder_name + "/" + file
 
     data = np.load(file_name)
 
-    traj_robot_save = data["traj_robot_save"]
+    traj_robot_tool_save = data["traj_robot_tool_save"]
     traj_rope_base_save = data["traj_rope_base_save"]
     traj_rope_tip_save = data["traj_rope_tip_save"]    
     traj_force_save = data["traj_force_save"]
@@ -60,4 +60,4 @@ if __name__ == "__main__":
     # exit()
     # params = [.254, .2413, 0.003, 0.03]
 
-    cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_force_save)
+    cost_fun(params, q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save, traj_force_save)

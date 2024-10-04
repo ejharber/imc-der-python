@@ -12,14 +12,15 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
 
     rope = Rope(params[:-1])
 
-    for i in range(q0_save.shape[0]):
+    for i in range(2, q0_save.shape[0]):
 
         q0 = q0_save[i, :]
         qf = qf_save[i, :]
 
         traj_robot = traj_robot_save[i, :, :]
-        traj_rope_base = traj_rope_base_save[i, round(params[-2]):round(params[-2] + 500), :] # taken by mocap
-        traj_force = traj_force_save[i, round(params[-3]):round(params[-3] + 500), :]
+        traj_rope_base = traj_rope_base_save[i, round(params[-1]):round(params[-1] + 500), :] # taken by mocap
+        traj_rope_tip = traj_rope_tip_save[i, round(params[-1]):round(params[-1] + 500), :] # taken by mocap
+        traj_force = traj_force_save[i, round(params[-2]):round(params[-2] + 500), :]
         
         success, traj_pos_sim, traj_force_sim, traj_force_sim_base, traj_force_sim_rope, q_save, _ = rope.run_sim(q0, qf)
 
@@ -27,12 +28,12 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
 
         # print(traj_force_sim_rope)
         # rope.render(q_save, traj_rope_base, traj_pos_sim)
-        rope.render(q_save)
+        rope.render(q_save, traj_rope_tip)
 
-        # plt.figure("pose sim v real world data")
-        # plt.plot(traj_robot, 'r-', label='real world')
-        # plt.plot(traj_pos_sim, 'b-', label='sim')
-        # plt.legend()
+        plt.figure("pose sim v real world data")
+        plt.plot(traj_rope_tip, 'r-', label='real world')
+        plt.plot(traj_pos_sim, 'b-', label='sim')
+        plt.legend()
 
         plt.figure("force sim v real world data")
         plt.plot(traj_force, 'r.', label='real world')
@@ -43,7 +44,7 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
 
         plt.show()
 
-        exit()
+        # exit()
 
 if __name__ == "__main__":
 
@@ -60,10 +61,22 @@ if __name__ == "__main__":
     q0_save = data["q0_save"]
     qf_save = data["qf_save"]
 
-    # params = np.load("params/N2.npz")["params"]
-    # print(params)
+    inertial_params = np.load("params/inertial_calibration.npz")["params"]
+    print(inertial_params)
     # exit()
-    params = [2.00049247e-01, 2.00032400e-01, .1, 2, 1e8, 0.000001, 0.05, 0.05, 0.05, 60, 60, 60]
+    # params = [.254, .2413, 0.003, 0.03]
+
+    params = [inertial_params[0], inertial_params[1], 0.5842, 0.01, 1e4, 0.01, inertial_params[3], .0103, .06880, inertial_params[4], 60, 60]
+    # params = [0.22915540232398574, 0.20000000000000004, 0.036294360943663645, 0.7037556574462394, 58032633.295201994, 0.47778348511389546, 0.05314106679722293, 0.015495622626538724, 0.01684803919905322, 46.16667651912822, 45.76536688106134]
+    # params = [0.19315186293715925, 0.15165394764203527, 0.5914301717039617, 0.21938201785236222, 9203344.337211214, 0.214039657881742, 0.054183350275864156, 0.010647563423367076, 0.0509047146544107, 53.37315012304928, 43.99597956691203]
+    params = [1.38180760e-01, 6.67933208e-02, 6.82472865e-01, 
+              3.23124893e-02,
+              1e2, 
+              8.09535636e+04, 
+              8.09535636e+04,
+              6.37040392e-03, 
+              7.73792282e-02, 4.66572245e-02, 7.49353158e-02, 
+              3.49517360e+01, 4.14979749e+01]
 
     # self.dL_stick = X[0]
     # self.dL_ati = X[1] # should replace this with an array         
