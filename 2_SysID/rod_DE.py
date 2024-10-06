@@ -15,7 +15,7 @@ def cost_fun(params, q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save
     rod = Rod(params[:-1])
 
     if params[1] > params[0]:
-        return 1e2
+        return 1e4
 
     norm_mocap = 0
     norm_ati = 0
@@ -37,10 +37,6 @@ def cost_fun(params, q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save
         norm_mocap += np.linalg.norm(traj_rope_base) 
         cost_ati += np.linalg.norm(traj_force - traj_force_sim_nonintertial)
         norm_ati += np.linalg.norm(traj_force)       
-
-        if not success:
-            print(1e2)
-            return 1e2
 
         if display:
             rod.render(q_save, traj_rope_base, traj_pos_sim)
