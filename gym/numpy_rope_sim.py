@@ -133,7 +133,7 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
                 u_vec = np.array([xk - x0k, yk - y0k])
                 u_vec = u_vec / dt
 
-                dFs = - rope_damp *  np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
+                dFs = rope_damp *  np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
 
                 f[indeces[2:4]] = f[indeces[2:4]] + dFs
                 f_save[indeces[2:4], c] = f_save[indeces[2:4], c] + dFs[:2, 0]
@@ -157,7 +157,7 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
                 u_vec = np.array([xk - x0k, yk - y0k])
                 u_vec = u_vec / dt
 
-                dFs = - rope_damp *  np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
+                dFs = rope_damp *  np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
 
                 f[indeces[2:4]] = f[indeces[2:4]] + dFs
                 f_save[indeces[2:4], c] = f_save[indeces[2:4], c] - dFs[:2, 0]
