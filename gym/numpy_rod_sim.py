@@ -10,10 +10,10 @@ def run_simulation(x0, u0, N, dt, dL0, g, damp, m1, traj):
     # Initial velocity
     u0 = np.array([u0]).T
 
-    # try:
-    return _run_simulation(q0, u0, N, dt, dL0, g, damp, m1, traj)
-    # except:
-        # return [], [], [], False, []
+    try:
+        return _run_simulation(q0, u0, N, dt, dL0, g, damp, m1, traj)
+    except:
+        return [], [], [], False, []
 
 @jit(cache=True, nopython=True)
 def _run_simulation(q0, u0, N, dt, dL0, g, damp, m1, traj):
@@ -64,4 +64,4 @@ def _run_simulation(q0, u0, N, dt, dL0, g, damp, m1, traj):
         u0 = (q - q0) / dt  # New velocity becomes old velocity for next iter
         q0 = q  # Old position
 
-    return f_save, q_save, u_save, True
+    return q_save, u_save, f_save, True

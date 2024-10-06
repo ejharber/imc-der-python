@@ -73,7 +73,7 @@ class Rod(object):
                 forces_inertial[i] = R @ forces_inertial[i]
 
                 # F_non_inertial[i] = forces_inertial[i] - F_fictitious - F_centrifugal - F_euler - F_coriolis
-                F_non_inertial[i] = F_graviatational + F_damp + F_fictitious # - F_centrifugal - F_euler - F_coriolis - F_damp
+                F_non_inertial[i] = F_graviatational + F_damp + F_fictitious + F_centrifugal + F_euler + F_coriolis
 
             return F_non_inertial.T, forces_inertial.T
 
@@ -89,10 +89,10 @@ class Rod(object):
         self.x0[::2] += traj[0, 0]
         self.x0[1::2] += traj[0, 1]
 
-        f_save, q_save, u_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.g, self.damp, self.m1, traj)
+        q_save, u_save, f_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.g, self.damp, self.m1, traj)
 
-        # if not success:
-        #     return False, [], [], [], []
+        if not success:
+            return False, [], [], [], []
 
         p_frame = traj[[0,1], :]
         p_frame[0, :] += np.cos(traj[2, :]) * self.dL_ati
@@ -113,19 +113,23 @@ class Rod(object):
 
         forces_inertial = f_save[[2, 3], 2:].T
 
-        force_nonintertial, forces_inertial = non_inertial_forces_with_euler(self.m1, self.damp, forces_inertial, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
+        f_total, forces_inertial = non_inertial_forces_with_euler(self.m1, self.damp, forces_inertial, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
 
         sampling = round(self.sample_rate / self.dt)
         forces_inertial = forces_inertial[:, ::sampling]
-        force_nonintertial = force_nonintertial[:, ::sampling]
+        f_total = f_total[:, ::sampling]
         # q_save = q_save[:, ::sampling]
         # f_save = f_save[:, ::sampling]
         traj_pos = q_save[-2:, -500:] # trajectory of tip
 
-        force_nonintertial = np.atleast_2d(force_nonintertial[0, -500:] - force_nonintertial[0, -499]) # zero forces similar to how we really use the sensor
+        f_total = np.atleast_2d(f_total[0, -500:] - f_total[0, -499]) # zero forces similar to how we really use the sensor
         forces_inertial = np.atleast_2d(forces_inertial[0, -500:] - forces_inertial[0, -499])
         
-        return success, traj_pos.T, force_nonintertial.T, forces_inertial.T, q_save.T, f_save.T
+        plt.plot(forces_inertial[1, -500:], 'r-')
+        plt.plot(forces_inertial[0, -500:], 'b-')
+        plt.show()
+        
+        return success, traj_pos.T, f_total.T, forces_inertial.T, q_save.T, f_save.T
 
     def reset(self, seed = None):
 

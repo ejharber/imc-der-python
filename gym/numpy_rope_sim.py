@@ -2,7 +2,7 @@
 import numpy as np
 from numba import jit
 
-def run_simulation(x0, u0, N, dt, dL_stick, dL_rope, Kb, Ks, damp, m_holder, m_rope, m_tip, traj):
+def run_simulation(x0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb, Kb_connector, Ks, Ks_connector, damp, rope_damp, m_holder, m_rope, m_tip, traj):
     # Initial DOF vector
     # Initial Position
     q0 = np.array([x0]).T
@@ -10,34 +10,36 @@ def run_simulation(x0, u0, N, dt, dL_stick, dL_rope, Kb, Ks, damp, m_holder, m_r
     # Initial velocity
     u0 = np.array([u0]).T
 
-    # try:
-    return _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb, Ks, damp, m_holder, m_rope, m_tip, traj)
-    # except:
-        # return [], [], [], False, []
+    try:
+        return _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb, Kb_connector, Ks, Ks_connector, damp, rope_damp, m_holder, m_rope, m_tip, traj)
+    except:
+        return [], [], [],  False
 
 @jit(cache=True, nopython=True)
-def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_holder, m_rope, m_tip, traj):
+def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connector, Ks_rope, Ks_connector, damp, rope_damp, m_holder, m_rope, m_tip, traj):
     # :param Kb: the bending stiffness. (1e-8, 1), (1e5, 1e9)
     # :param Ks: the streching stiffness.
 
     # non-Homogenous Kb
     Kb = np.zeros((N-1))
-    Kb[1:] = Kb_rope
+    Kb[:3] = Kb_connector
+    Kb[3:] = Kb_rope
 
     # non-Homoegneous Ks
     Ks = np.zeros((N-1))
-    Ks[0] = 1e8
-    Ks[1:] = Ks_rope
+    Ks[:3] = Ks_connector
+    Ks[3:] = Ks_rope
 
     # non-Homogenous Lengths
     dL = np.zeros((N-1))
     dL[0] = dL_stick
-    dL[1:] = dL_rope
+    dL[1:3] = dL_ati
+    dL[3:] = dL_rope
 
     ## Mass matrix
     masses = np.ones((2 * N, 1))
-    masses[:2, :] = m_holder # mass of base 
-    masses[2:-2, :] = m_rope # mass of rope
+    masses[:6, :] = m_holder # mass of base 
+    masses[6:-2, :] = m_rope # mass of rope
     masses[-2:, :] = m_tip # mass of tip
     M = np.diag(masses.flatten())
 
@@ -89,20 +91,76 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
 
             iteration += 1
             if iteration >= max_iteration:
-                print("max iter reached")
+                print("max iter reached", c, err)
                 # print(c, err)
-                return f_save, q_save, u_save, False
+                return q_save, u_save, f_save, False
+
+            # print(q)
+            f_save[:, c] = f_save[:, c] * 0
 
             # Inertia
-            f = M / dt @ ((q - q0) / dt - u0)  # inside() is new - old velocity, @ mKsns matrix multiplication
+            u = (q - q0) / dt
+            f = M / dt @ (u - u0)  # inside() is new - old velocity, @ mKsns matrix multiplication
             J = M / dt ** 2.0
 
+            # print("inertial", M / dt @ ((q - q0) / dt - u0))
             # Weight
-            f = f - W
+            f = f + W
+
+            # print("weight", W)
 
             # # Viscous force
-            f = f - damp * (q - q0) / dt
-            J = J - damp / dt
+            f = f + damp * (q - q0) / dt
+            J = J + damp / dt
+
+            # Rope Viscous Forces
+            for k in range(3, N-1):
+                
+                indeces = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
+                indeces = np.array(indeces)
+
+                # xkm1 = q[indeces[0]].item()  # xk minus 1
+                # ykm1 = q[indeces[1]].item()
+                xk = q[indeces[2]].item()
+                yk = q[indeces[3]].item()
+                xkp1 = q[indeces[4]].item()
+                ykp1 = q[indeces[5]].item()
+
+                x0k = q0[indeces[2]].item()  # xk
+                y0k = q0[indeces[3]].item()  # yk
+
+                spring_vec = np.array([xk, yk]) - np.array([xkp1, ykp1])
+                u_vec = np.array([xk - x0k, yk - y0k])
+                u_vec = u_vec / dt
+
+                dFs = - rope_damp *  np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
+
+                f[indeces[2:4]] = f[indeces[2:4]] + dFs
+                f_save[indeces[2:4], c] = f_save[indeces[2:4], c] + dFs[:2, 0]
+
+            for k in range(4, N):
+                
+                indeces = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
+                indeces = np.array(indeces)
+
+                xkm1 = q[indeces[0]].item()  # xk minus 1
+                ykm1 = q[indeces[1]].item()
+                xk = q[indeces[2]].item()
+                yk = q[indeces[3]].item()
+                # xkp1 = q[indeces[4]].item()
+                # ykp1 = q[indeces[5]].item()
+
+                x0k = q0[indeces[2]].item()  # xk
+                y0k = q0[indeces[3]].item()  # yk
+
+                spring_vec = np.array([xk, yk]) - np.array([xkm1, ykm1])
+                u_vec = np.array([xk - x0k, yk - y0k])
+                u_vec = u_vec / dt
+
+                dFs = - rope_damp *  np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
+
+                f[indeces[2:4]] = f[indeces[2:4]] + dFs
+                f_save[indeces[2:4], c] = f_save[indeces[2:4], c] - dFs[:2, 0]
 
             k = 0
             # Linear spring between nodes k and k + 1
@@ -115,7 +173,8 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
             dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])                
             dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
             indeces = np.array(indeces)
-            f[indeces] = f[indeces] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
+            f[indeces] = f[indeces] + dFs  # check here if not working!
+            # print(f_save[indeces, c].shape, dFs.shape)
             J[indeces[0]:indeces[3] + 1, indeces[0]:indeces[3] + 1] = J[indeces[0]:indeces[3] + 1,
                                                                       indeces[0]:indeces[3] + 1] + dJs
 
@@ -132,25 +191,31 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_rope, Kb_rope, Ks_rope, damp, m_
                 ykp1 = q[indeces[5]].item()
                 curvature0 = 0.0  # because we are using a straight bKsm
 
-                deltaX = (xk - xkp1)
-                deltaY = (yk - ykp1)
-                if k == 1:
-                    deltaL1 = np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5)
-                    f_save[k, c] = ((deltaL1-dL[k])*Ks[k])
-                    # print(deltaL1, deltaX, deltaY, dL[k], Ks[k], f_save[k, c])
+                # deltaX = (xk - xkp1)
+                # deltaY = (yk - ykp1)
+                # if k == 1:
+                #     deltaL1 = np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5)
+                #     f_save[k, c] = ((deltaL1-dL[k])*Ks[k])
+                #     # print(deltaL1, deltaX, deltaY, dL[k], Ks[k], f_save[k, c])
 
                 # linear spring between nodes k and k + 1
                 dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
                 dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
                 # f_save[indeces[2:], c] = f_save[indeces[2:], c] + dFs
-                f[indeces[2:]] = f[indeces[2:]] + dFs  # check here if not working!!!!!!!!!!!!!!!!!!!!!!!1
+                f[indeces[2:]] = f[indeces[2:]] + dFs  # check here if not working!
+                f_save[indeces[2:4], c] = f_save[indeces[2:4], c] + dFs[:2, 0]
+                f_save[indeces[4:], c] = f_save[indeces[4:], c] - dFs[2:, 0]
+
                 J[indeces[2]:indeces[5] + 1, indeces[2]:indeces[5] + 1] = J[indeces[2]:indeces[5] + 1,
                                                                           indeces[2]:indeces[5] + 1] + dJs
+
+                # print(k, dFs, np.linalg.norm(dFs))
 
                 # Bending spring between nodes k-1, k, and k+1 located at node 2
                 dFb = grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, dL[k], Kb[k])
                 dJb = hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, dL[k], Kb[k])
-                f[indeces] = f[indeces] + dFb  # and here !!!!!!!!!!!!!!!!!!!!!
+                f[indeces] = f[indeces] + dFb  # and here !
+                # f_save[indeces, c] = f_save[indeces, c] + dFb[:, 0]
                 J[indeces[0]:indeces[5] + 1, indeces[0]:indeces[5] + 1] = J[indeces[0]:indeces[5] + 1,
                                                                           indeces[0]:indeces[5] + 1] + dJb
 

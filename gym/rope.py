@@ -15,7 +15,8 @@ class Rope(object):
         self.UR5e = UR5eCustom()
 
         ## Model Parameters (Calculated)
-        self.N = 10
+        self.N = 15
+        self.N_rope = self.N - 4 # 2 for the base/ur5e and one for the tip
         self.dt = 0.002 # we are collecting data at 500 hz
         self.sample_rate = 0.002
         self.g = 9.8
@@ -23,20 +24,23 @@ class Rope(object):
 
         ## Physics Parameters
         self.dL_stick = X[0]
-        self.dL_ati = X[1] # should replace this with an array         
-        self.dL_rope = X[2]
+        self.dL_ati = X[1]
+        self.dL_rope = X[2] / self.N_rope
         self.Kb = X[3]
-        self.Ks = X[4]
-        self.damp = X[5]
-        self.m_holder = X[6]
-        self.m_rope = X[7]
-        self.m_tip = X[8]
+        self.Kb_connector = X[4]
+        self.Ks = X[5]
+        self.Ks_connector = X[6]
+        self.damp = X[7]
+        self.rope_damp = X[8]
+        self.m_holder = X[9]
+        self.m_rope = X[10] / (self.N_rope)
+        self.m_tip = X[11]
 
         self.x0 = None
         self.u0 = None
 
     def run_sim(self, q0, qf):
-        def non_inertial_forces_with_euler(mass, damp, v_frame, a_frame, angle, omega, angular_acceleration, positions, velocities):
+        def non_inertial_forces_with_euler(f_ati, mass, damp, v_frame, a_frame, angle, omega, angular_acceleration, positions, velocities):
 
             N = len(v_frame)
             F_non_inertial = np.zeros((N, 2))  # Initialize the output array
@@ -63,10 +67,12 @@ class Rope(object):
 
                 # dampening force:
                 F_damp = - damp * R @ v_frame[i]
+
+                f_ati[i] = R @ f_ati[i]
                 
                 F_non_inertial[i] = F_graviatational + F_damp + F_fictitious - F_centrifugal - F_euler - F_coriolis
 
-            return F_non_inertial.T
+            return F_non_inertial.T, f_ati.T
 
         self.reset()
 
@@ -79,7 +85,7 @@ class Rope(object):
         self.x0[::2] += traj[0, 0]
         self.x0[1::2] += traj[1, 0]
 
-        q_save, u_save, f_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.dL_rope, self.Kb, self.Ks, self.damp, self.m_holder, self.m_rope, self.m_tip, traj)
+        q_save, u_save, f_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.dL_ati, self.dL_rope, self.Kb, self.Kb_connector, self.Ks, self.Ks_connector, self.damp, self.rope_damp, self.m_holder, self.m_rope, self.m_tip, traj)
 
         if not success:
             return False, [], [], [], [], [], []
@@ -101,21 +107,64 @@ class Rope(object):
         omega = np.gradient(angle, axis=0, edge_order=2) / self.dt
         angular_acceleration = np.gradient(omega, axis=0, edge_order=2) / self.dt
 
-        f_base = non_inertial_forces_with_euler(self.m_holder, self.damp, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
+
+        # plt.figure("pose x")
+        # for i in range(0, self.N, 2):
+        #     plt.plot(q_save[i, :].T, label=str(i))
+        # plt.legend()
+
+        # plt.figure("pose y")
+        # for i in range(1, self.N, 2):
+        #     plt.plot(q_save[i, :].T, label=str(i))
+        # plt.legend()
+        # # plt.show()
+        # # exit()
+
+
+        # plt.figure("force x")
+        # for i in range(0, self.N, 2):
+        #     plt.plot(f_save[i, :].T, label=str(i))
+        # plt.legend()
+
+        # plt.figure("force y")
+        # for i in range(1, self.N, 2):
+        #     plt.plot(f_save[i, :].T, label=str(i))
+        # plt.legend()
+        # plt.show()
+        # exit()
+
+        f_ati = -np.array([f_save[4, :], f_save[5, :]])
+
+        f_base, f_ati = non_inertial_forces_with_euler(f_ati.T, self.m_holder, self.damp, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
+
+        # plt.plot(f_ati.T[:, 1])
+        # plt.show()
+        # exit()
+
+        # f_ati = np.array([np.sum(f_save[2::2, :], axis=0), np.sum(f_save[3::2, :], axis=0)])
 
         sampling = round(self.sample_rate / self.dt)
         f_base = f_base[:, ::sampling]
-
+        f_ati = f_ati[:, ::sampling]
         q_save = q_save[:, ::sampling]
         f_save = f_save[:, ::sampling]
         traj_pos = q_save[-2:, -500:] # trajectory of tip
 
         # forces_inertial = np.atleast_2d(forces_inertial[0, -500:] - forces_inertial[0, -499])
 
+        # f_ati = f_save[3, :]
+
         f_base = np.atleast_2d(f_base[0, -500:])
-        f_rope = np.atleast_2d(f_save[1, -500:])
-        f_total = f_base + f_rope
+        f_rope = np.atleast_2d(f_ati[0, -500:])
+        f_total = f_rope
         f_total = np.atleast_2d(f_total[0, :] - f_total[0, 0]) # zero forces similar to how we really use the sensor
+
+
+        # plt.plot(f_ati[1, -500:], 'r-')
+        # plt.plot(f_ati[0, -500:], 'b-')
+        # plt.show()
+        # exit()
+        
 
         return success, traj_pos.T, f_total.T, f_base.T, f_rope.T, q_save.T, f_save.T
 
@@ -125,6 +174,8 @@ class Rope(object):
         for k in range(1, self.N):
             if k == 1:
                 self.x0[k, 1] = -self.dL_stick
+            elif k == 2 or k == 3:
+                self.x0[k, 1] = self.x0[k-1, 1] - self.dL_ati
             else:
                 self.x0[k, 1] = self.x0[k-1, 1] - self.dL_rope
 
