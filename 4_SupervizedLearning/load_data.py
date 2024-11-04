@@ -10,20 +10,22 @@ import matplotlib.pyplot as plt
 def load_data_zeroshot(folder_name, seed=0, noramlize=True):
     np.random.seed(seed)  # Set the random seed for reproducibility
 
-    actions = []
-    goals = []
+    actions = np.empty((0, 3))  # Predefine empty array for actions
+    goals = np.empty((0, 2))    # Predefine empty array for goals
 
-    for file in os.listdir(folder_name):
+    folder_path = os.path.dirname(os.path.realpath(__file__)) + "/../3_ExpandDataSet/" + folder_name
+
+    for file in os.listdir(folder_path):
         if not file.endswith(".npz"):
             continue 
 
-        data = np.load(os.path.join(folder_name, file))
+        data = np.load(os.path.join(folder_path, file))
 
-        actions.append(data["qf_save"][:, [1, 2, 3]])
-        goals.append(data["traj_pos_save"][:, -1, :])
+        # Append actions and goals using np.append
+        actions = np.append(actions, data["qf_save"][:, [1, 2, 3]], axis=0)
+        goals = np.append(goals, data["traj_pos_save"][:, -1, :], axis=0)
 
-    actions = np.array(actions)
-    actions = np.reshape(actions, (actions.shape[0] * actions.shape[1], actions.shape[2]))
+    print(actions.shape, goals.shape)
     
     # Calculate mean and standard deviation of actions
     actions_mean = np.mean(actions, axis=0)
@@ -33,9 +35,6 @@ def load_data_zeroshot(folder_name, seed=0, noramlize=True):
     if noramlize:
         actions = (actions - actions_mean) / actions_std
 
-    goals = np.array(goals)
-    goals = np.reshape(goals, (goals.shape[0] * goals.shape[1], goals.shape[2]))
-    
     # Calculate mean and standard deviation of goals
     goals_mean = np.mean(goals, axis=0)
     goals_std = np.std(goals, axis=0)
@@ -60,24 +59,22 @@ def load_data_zeroshot(folder_name, seed=0, noramlize=True):
             actions[test_indices], goals[test_indices],
             actions_mean, actions_std, goals_mean, goals_std)
 
-def load_realworlddata_zeroshot(seed=0):
+def load_realworlddata_zeroshot(file_name, seed=0):
 
     file_path = os.path.dirname(os.path.realpath(__file__)) + "/../2_SysID/filtered_data/"
-    file_name = "raw_data_06122024_1400.npz"
-    data = np.load(os.path.join(file_path, file_name))
+    data = np.load(os.path.join(file_path, file_name) + ".npz")
 
     np.random.seed(seed)
 
     actions = data["qf_save"][:, [1, 2, 3]]
-    goals = data["traj_pos_save"][:, -1, :]
+    goals = data["traj_rope_tip_save"][:, -1, :]
     
     # Return normalized data, means, and stds for train and test sets
     return (actions, goals)
 
-def load_realworlddata_iterative(seed=0):
+def load_realworlddata_iterative(file_name, seed=0):
 
     file_path = os.path.dirname(os.path.realpath(__file__)) + "/../2_SysID/filtered_data/"
-    file_name = "raw_data_06122024_1400.npz"
     data = np.load(os.path.join(file_path, file_name))
 
     np.random.seed(seed)
@@ -112,7 +109,7 @@ def load_realworlddata_iterative(seed=0):
 
 def load_realworlddata_iterative_check(seed=0):
     # Assuming UR5eCustom is defined somewhere in your code
-    file_path = os.path.dirname(os.path.realpath(__file__)) + "/../3_ExpandDataSet/raw_data"
+    file_path = os.path.dirname(os.path.realpath(__file__)) + "/../3_ExpandDataSet/N2_all_expanded_data"
 
     np.random.seed(seed)
 
@@ -262,6 +259,8 @@ def load_data_iterative(folder_name, seed=0, normalize=True, subset=False):
             traj_mean, traj_std)
 
 if __name__ == '__main__':
+    load_data_zeroshot("N2_all")
+    load_realworlddata_zeroshot("N2")
     # load_data_iterative("../3_ExpandDataSet/raw_data")
-    load_realworlddata_iterative_check()
-    load_realworlddata_iterative()
+    # load_realworlddata_iterative_check()
+    # load_realworlddata_iterative()

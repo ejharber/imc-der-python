@@ -2,7 +2,7 @@
 import numpy as np
 from numba import jit
 
-def run_simulation(x0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb, Kb_connector, Ks, Ks_connector, damp, rope_damp, m_holder, m_rope, m_tip, traj):
+def run_simulation(x0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb, Kb_connector, Ks, Ks_connector, damp, rope_damp, ati_damp, m_holder, m_rope, m_tip, traj):
     # Initial DOF vector
     # Initial Position
     q0 = np.array([x0]).T
@@ -11,12 +11,13 @@ def run_simulation(x0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb, Kb_connector, K
     u0 = np.array([u0]).T
 
     try:
-        return _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb, Kb_connector, Ks, Ks_connector, damp, rope_damp, m_holder, m_rope, m_tip, traj)
+        return _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb, Kb_connector, Ks, Ks_connector, damp, rope_damp, ati_damp, m_holder, m_rope, m_tip, traj)
     except:
+        print('error')
         return [], [], [],  False
 
 @jit(cache=True, nopython=True)
-def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connector, Ks_rope, Ks_connector, damp, rope_damp, m_holder, m_rope, m_tip, traj):
+def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connector, Ks_rope, Ks_connector, damp, rope_damp, ati_damp, m_holder, m_rope, m_tip, traj):
     # :param Kb: the bending stiffness. (1e-8, 1), (1e5, 1e9)
     # :param Ks: the streching stiffness.
 
@@ -36,6 +37,12 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
     dL[1:3] = dL_ati
     dL[3:] = dL_rope
 
+    # non-Homogenous Axial Dampening
+    axial_damp = np.zeros((N-1))
+    axial_damp[0] = 0
+    axial_damp[1:3] = ati_damp
+    axial_damp[3:] = rope_damp
+
     ## Mass matrix
     masses = np.ones((2 * N, 1))
     masses[:6, :] = m_holder # mass of base 
@@ -52,7 +59,7 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
     free_top = 2*N
 
     # Tolerance
-    tol = 1e-4 # division of rod length puts units in N
+    tol = 1e-2 # division of rod length puts units in N
 
     q = 0
     f = 0
@@ -76,7 +83,7 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
         err = 10 * tol
 
         iteration = 0
-        max_iteration = 1000
+        max_iteration = 50_000
 
         # o - o - o - o - o .. o
         # ^   ^                   constrained to ur5e
@@ -90,7 +97,11 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
         while err > tol:
 
             iteration += 1
-            if iteration >= max_iteration:
+
+            # if iteration % 1000 == 0 and iteration > 0:
+            #     print(c, err)
+
+            if iteration >= max_iteration or err > 1e3:
                 print("max iter reached", c, err)
                 # print(c, err)
                 return q_save, u_save, f_save, False
@@ -113,54 +124,106 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
             f = f + damp * (q - q0) / dt
             J = J + damp / dt
 
+            # print(c, iteration, "init")
+
             # Rope Viscous Forces
-            for k in range(3, N-1):
+            # for k in range(N-1):
                 
-                indeces = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
-                indeces = np.array(indeces)
+            #     indeces = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
+            #     indeces = np.array(indeces)
 
-                # xkm1 = q[indeces[0]].item()  # xk minus 1
-                # ykm1 = q[indeces[1]].item()
-                xk = q[indeces[2]].item()
-                yk = q[indeces[3]].item()
-                xkp1 = q[indeces[4]].item()
-                ykp1 = q[indeces[5]].item()
+            #     # xkm1 = q[indeces[0]].item()  # xk minus 1
+            #     # ykm1 = q[indeces[1]].item()
+            #     xk = q[indeces[2]].item()
+            #     yk = q[indeces[3]].item()
+            #     xkp1 = q[indeces[4]].item()
+            #     ykp1 = q[indeces[5]].item()
 
-                x0k = q0[indeces[2]].item()  # xk
-                y0k = q0[indeces[3]].item()  # yk
+            #     # xk0m1 = q0[indeces[0]].item()  # xk minus 1
+            #     # yk0m1 = q0[indeces[1]].item()
+            #     x0k = q0[indeces[2]].item()  # xk
+            #     y0k = q0[indeces[3]].item()  # yk
+            #     x0kp1 = q0[indeces[4]].item()  # xk
+            #     y0kp1 = q0[indeces[5]].item()  # yk
 
-                spring_vec = np.array([xk, yk]) - np.array([xkp1, ykp1])
-                u_vec = np.array([xk - x0k, yk - y0k])
-                u_vec = u_vec / dt
+            #     spring_vec = np.array([xkp1, ykp1]) - np.array([xk, yk])
+            #     u_vec_1 = np.array([xk - x0k, yk - y0k])
+            #     u_vec_1 = u_vec_1 / dt
+            #     u_vec_2 = np.array([xkp1 - x0kp1, ykp1 - y0kp1])
+            #     u_vec_2 = u_vec_2 / dt
 
-                dFs = rope_damp *  np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
+            #     u_vec = u_vec_1 - u_vec_2
 
-                f[indeces[2:4]] = f[indeces[2:4]] + dFs
-                f_save[indeces[2:4], c] = f_save[indeces[2:4], c] + dFs[:2, 0]
+            #     if np.dot(u_vec, spring_vec) < 0:
+            #         spring_vec = - spring_vec 
 
-            for k in range(4, N):
+            #     dFs = axial_damp[k] * np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
+
+            #     # print(u_vec, spring_vec, dFs)
+
+            #     # Compute Jacobian for the viscous force term
+            #     spring_norm_sq = np.dot(spring_vec, spring_vec)
+            #     u_dot_spring = np.dot(u_vec, spring_vec)
+
+            #     f[indeces[2:4]] = f[indeces[2:4]] + dFs
+            #     f_save[indeces[2:4], c] = f_save[indeces[2:4], c] + dFs[:2, 0]
+
+            #     # Derivatives of dFs with respect to q (Jacobian)
+            #     dFdq_kkp1 = axial_damp[k] / dt * (np.outer(spring_vec, u_vec) / spring_norm_sq)
+    
+            #     # Add to Jacobian matrix for the indices of q corresponding to the forces
+            #     for i in range(2):
+            #         for j in range(2):
+            #             J[indeces[2 + i], indeces[2 + j]] += dFdq_kkp1[i, j]
+
+            # for k in range(1, N):
                 
-                indeces = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
-                indeces = np.array(indeces)
+            #     indeces = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
+            #     indeces = np.array(indeces)
 
-                xkm1 = q[indeces[0]].item()  # xk minus 1
-                ykm1 = q[indeces[1]].item()
-                xk = q[indeces[2]].item()
-                yk = q[indeces[3]].item()
-                # xkp1 = q[indeces[4]].item()
-                # ykp1 = q[indeces[5]].item()
+            #     xkm1 = q[indeces[0]].item()  # xk minus 1
+            #     ykm1 = q[indeces[1]].item()
+            #     xk = q[indeces[2]].item()
+            #     yk = q[indeces[3]].item()
+            #     # xkp1 = q[indeces[4]].item()
+            #     # ykp1 = q[indeces[5]].item()
 
-                x0k = q0[indeces[2]].item()  # xk
-                y0k = q0[indeces[3]].item()  # yk
+            #     x0km1 = q0[indeces[0]].item()  # xk minus 1
+            #     y0km1 = q0[indeces[1]].item()
+            #     x0k = q0[indeces[2]].item()  # xk
+            #     y0k = q0[indeces[3]].item()  # yk
+            #     # x0kp1 = q0[indeces[4]].item()  # xk
+            #     # y0kp1 = q0[indeces[5]].item()  # yk
 
-                spring_vec = np.array([xk, yk]) - np.array([xkm1, ykm1])
-                u_vec = np.array([xk - x0k, yk - y0k])
-                u_vec = u_vec / dt
+            #     spring_vec = np.array([xkm1, ykm1]) - np.array([xk, yk])
+            #     u_vec_1 = np.array([xk - x0k, yk - y0k])
+            #     u_vec_1 = u_vec_1 / dt
+            #     u_vec_2 = np.array([xkm1 - x0km1, ykm1 - y0km1])
+            #     u_vec_2 = u_vec_2 / dt
 
-                dFs = rope_damp *  np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
+            #     u_vec = u_vec_1 - u_vec_2
 
-                f[indeces[2:4]] = f[indeces[2:4]] + dFs
-                f_save[indeces[2:4], c] = f_save[indeces[2:4], c] - dFs[:2, 0]
+            #     if np.dot(u_vec, spring_vec) < 0:
+            #         spring_vec = - spring_vec 
+
+            #     dFs = axial_damp[k-1] * np.atleast_2d((np.dot(u_vec, spring_vec) / np.dot(spring_vec, spring_vec)) * spring_vec).T
+
+            #     f[indeces[2:4]] = f[indeces[2:4]] + dFs
+            #     f_save[indeces[2:4], c] = f_save[indeces[2:4], c] - dFs[:2, 0]
+
+            #     # Compute Jacobian for the viscous force term
+            #     spring_norm_sq = np.dot(spring_vec, spring_vec)
+            #     u_dot_spring = np.dot(u_vec, spring_vec)
+
+            #     # Derivatives of dFs with respect to q (Jacobian)
+            #     dFdq_kkm1 = axial_damp[k - 1] / dt * (np.outer(spring_vec, u_vec) / spring_norm_sq)
+                
+            #     # Add to Jacobian matrix for the indices of q corresponding to the forces
+            #     for i in range(2):
+            #         for j in range(2):
+            #             J[indeces[2 + i], indeces[2 + j]] += dFdq_kkp1[i, j]
+
+            # print(c, iteration, "visc")
 
             k = 0
             # Linear spring between nodes k and k + 1
@@ -191,13 +254,6 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
                 ykp1 = q[indeces[5]].item()
                 curvature0 = 0.0  # because we are using a straight bKsm
 
-                # deltaX = (xk - xkp1)
-                # deltaY = (yk - ykp1)
-                # if k == 1:
-                #     deltaL1 = np.power(np.power(deltaX, 2) + np.power(deltaY, 2), 0.5)
-                #     f_save[k, c] = ((deltaL1-dL[k])*Ks[k])
-                #     # print(deltaL1, deltaX, deltaY, dL[k], Ks[k], f_save[k, c])
-
                 # linear spring between nodes k and k + 1
                 dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
                 dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
@@ -209,8 +265,6 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
                 J[indeces[2]:indeces[5] + 1, indeces[2]:indeces[5] + 1] = J[indeces[2]:indeces[5] + 1,
                                                                           indeces[2]:indeces[5] + 1] + dJs
 
-                # print(k, dFs, np.linalg.norm(dFs))
-
                 # Bending spring between nodes k-1, k, and k+1 located at node 2
                 dFb = grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, dL[k], Kb[k])
                 dJb = hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, dL[k], Kb[k])
@@ -219,12 +273,19 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
                 J[indeces[0]:indeces[5] + 1, indeces[0]:indeces[5] + 1] = J[indeces[0]:indeces[5] + 1,
                                                                           indeces[0]:indeces[5] + 1] + dJb
 
+            # print(c, iteration, "UPDATE")
+
             # Update DOF for only the free ones
             f_free = np.copy(f[free_bot:free_top])
             J_free = np.copy(J[free_bot:free_top, free_bot:free_top])
             q_free -= np.linalg.solve(J_free, f_free)
             q[free_bot:free_top] = q_free
             err = np.sum(np.absolute(f_free))  # error is sum of forces bc we want f=0
+
+            # print(c, iteration, "done")
+
+            # print()
+
 
         # update
         u0 = (q - q0) / dt  # New velocity becomes old velocity for next iter
@@ -295,7 +356,6 @@ def grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, l_k, Kb):
     kb = 2.0 * np.cross(te.flatten(), tf.flatten()) / (1.0 + np.dot(te.flatten(), tf.flatten()))
 
     chi = 1.0 + np.dot(te.flatten(), tf.flatten())
-    # print(chi)
     chi = max(1e-4, chi)
 
     tilde_t = (te + tf) / chi

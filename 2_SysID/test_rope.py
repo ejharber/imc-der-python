@@ -10,8 +10,6 @@ from scipy.optimize import differential_evolution
 
 def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_rope_tip_save, traj_force_save):
 
-    rope = Rope(params[:-1])
-
     for i in range(2, q0_save.shape[0]):
 
         q0 = q0_save[i, :]
@@ -21,7 +19,8 @@ def cost_fun(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, tra
         traj_rope_base = traj_rope_base_save[i, round(params[-1]):round(params[-1] + 500), :] # taken by mocap
         traj_rope_tip = traj_rope_tip_save[i, round(params[-1]):round(params[-1] + 500), :] # taken by mocap
         traj_force = traj_force_save[i, round(params[-2]):round(params[-2] + 500), :]
-        
+
+        rope = Rope(params[:-2])        
         success, traj_pos_sim, traj_force_sim, traj_force_sim_base, traj_force_sim_rope, q_save, _ = rope.run_sim(q0, qf)
 
         print(traj_pos_sim.shape, traj_force_sim.shape, traj_force_sim_base.shape, traj_force_sim_rope.shape)
@@ -61,19 +60,18 @@ if __name__ == "__main__":
     q0_save = data["q0_save"]
     qf_save = data["qf_save"]
 
-    inertial_params = np.load("params/inertial_calibration.npz")["params"]
-    print(inertial_params)
+    params = np.load("params/N2.npz")["params"]
+    print(params)
     # exit()
     # params = [.254, .2413, 0.003, 0.03]
 
-    params = [inertial_params[0], inertial_params[1], 0.5842, 0.01, 1e4, 0.01, inertial_params[3], .0103, .06880, inertial_params[4], 60, 60]
+    # params = [inertial_params[0], inertial_params[1], 0.5842, 0.01, 1e4, 0.01, inertial_params[3], .0103, .06880, inertial_params[4], 60, 60]
     # params = [0.22915540232398574, 0.20000000000000004, 0.036294360943663645, 0.7037556574462394, 58032633.295201994, 0.47778348511389546, 0.05314106679722293, 0.015495622626538724, 0.01684803919905322, 46.16667651912822, 45.76536688106134]
     # params = [0.19315186293715925, 0.15165394764203527, 0.5914301717039617, 0.21938201785236222, 9203344.337211214, 0.214039657881742, 0.054183350275864156, 0.010647563423367076, 0.0509047146544107, 53.37315012304928, 43.99597956691203]
-    params = [9.03160162e-02, 8.19950918e-02, 6.00000000e-01, 1.88725904e-02,
-       1.00000000e+00, 1.67973134e+04, 8.79996751e+03, 1.78472496e-02,
-       6.67628863e-03, 6.52019782e-02, 5.30000000e-03, 6.38000000e-02,
-       4.74782698e+01, 5.13177000e+01]
-       
+    # params = [1.35495433e-04, 1.38784756e-01, 5.79650728e-01, 4.84518153e-03,
+       # 1.10808512e+02, 2.41103906e+04, 2.21659738e+04, 1.39608865e-03,
+       # 4.25843588e+01, 2.47631809e-01, 9.13829708e-02, 3.07163269e-04,
+       # 5.88072600e-02, 4.34659659e+01, 5.20962321e+01]
     # self.dL_stick = X[0]
     # self.dL_ati = X[1] # should replace this with an array         
     # self.dL_rope = X[2]

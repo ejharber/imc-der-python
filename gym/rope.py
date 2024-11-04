@@ -15,9 +15,9 @@ class Rope(object):
         self.UR5e = UR5eCustom()
 
         ## Model Parameters (Calculated)
-        self.N = 15
+        self.N = 20
         self.N_rope = self.N - 4 # 2 for the base/ur5e and one for the tip
-        self.dt = 0.002 # we are collecting data at 500 hz
+        self.dt = 0.002 # we are collecting data at 500 hz # sampling rate should be dividibal evenly by dt
         self.sample_rate = 0.002
         self.g = 9.8
         self.radius = 0.05
@@ -32,9 +32,10 @@ class Rope(object):
         self.Ks_connector = X[6]
         self.damp = X[7]
         self.rope_damp = X[8]
-        self.m_holder = X[9]
-        self.m_rope = X[10] / (self.N_rope)
-        self.m_tip = X[11]
+        self.ati_damp = X[9]
+        self.m_holder = X[10]
+        self.m_rope = X[11] / (self.N_rope)
+        self.m_tip = X[12]
 
         self.x0 = None
         self.u0 = None
@@ -79,13 +80,17 @@ class Rope(object):
         traj = self.UR5e.create_trajectory(q0, qf, dt=self.dt, time=1)
         traj = self.UR5e.fk_traj(traj, True)
         traj = np.append(np.repeat([traj[0, :]], traj.shape[0], axis=0), traj, axis=0)
+        traj = np.append(np.repeat([traj[0, :]], traj.shape[0], axis=0), traj, axis=0)
+
+        # plt.plot(traj)
+        # plt.show()
 
         traj = traj.T
 
         self.x0[::2] += traj[0, 0]
         self.x0[1::2] += traj[1, 0]
 
-        q_save, u_save, f_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.dL_ati, self.dL_rope, self.Kb, self.Kb_connector, self.Ks, self.Ks_connector, self.damp, self.rope_damp, self.m_holder, self.m_rope, self.m_tip, traj)
+        q_save, u_save, f_save, success = run_simulation(self.x0, self.u0, self.N, self.dt, self.dL_stick, self.dL_ati, self.dL_rope, self.Kb, self.Kb_connector, self.Ks, self.Ks_connector, self.damp, self.rope_damp, self.ati_damp, self.m_holder, self.m_rope, self.m_tip, traj)
 
         if not success:
             return False, [], [], [], [], [], []
@@ -137,6 +142,10 @@ class Rope(object):
 
         f_base, f_ati = non_inertial_forces_with_euler(f_ati.T, self.m_holder, self.damp, v_frame, a_frame, angle, omega, angular_acceleration, r, v)
 
+        # plt.figure(1)
+        # plt.plot(f_ati.T[:, 0])
+
+        # plt.figure(2)
         # plt.plot(f_ati.T[:, 1])
         # plt.show()
         # exit()

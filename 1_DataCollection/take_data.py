@@ -185,7 +185,10 @@ class UR5e_CollectData(Node):
                         if not np.any(np.array(self.mocap_data_save)[400:1100, :, :2] == 0): # need to change back to tip
                             break
                         else:
-                            print('failed')
+                            print(np.where(np.array(self.mocap_data_save)[400:1100, :, :2] == 0))
+                            print('could not find tip')
+
+
                         # break
 
                     # self.update_plot()

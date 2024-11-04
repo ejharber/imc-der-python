@@ -20,29 +20,39 @@ class SimpleMLP(nn.Module):
         
         self.relu = nn.ReLU()
 
-        self.data_mean = data_mean 
+        # Assign normalization tensors
+        self.data_mean = data_mean
         self.data_std = data_std
         self.labels_mean = labels_mean
         self.labels_std = labels_std
 
     def forward(self, x, test=False):
         if test:
-            # if self.data_mean is None or self.data_std is None or self.labels_mean is None or self.labels_std:
-                # print("failed to set noramlization params")
-                # return
-
-            x = x - self.data_mean
-            x = x / self.data_std 
+            # Normalize the input
+            x = (x - self.data_mean) / self.data_std
 
         for layer in self.hidden_layers:
             x = self.relu(layer(x))
         x = self.output_layer(x)
 
         if test:
-            x = x * self.labels_std 
-            x = x + self.labels_mean
+            # De-normalize the output
+            x = x * self.labels_std + self.labels_mean
 
         return x
+
+    def to(self, device):
+        # Override the to() method to move the normalization parameters to the specified device
+        model = super(SimpleMLP, self).to(device)
+        if self.data_mean is not None:
+            self.data_mean = self.data_mean.to(device)
+        if self.data_std is not None:
+            self.data_std = self.data_std.to(device)
+        if self.labels_mean is not None:
+            self.labels_mean = self.labels_mean.to(device)
+        if self.labels_std is not None:
+            self.labels_std = self.labels_std.to(device)
+        return model
 
 if __name__ == '__main__':
     # Example usage:
@@ -52,4 +62,6 @@ if __name__ == '__main__':
     output_size = 5
     
     model = SimpleMLP(input_size, hidden_size, num_layers, output_size)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device)  # This will now move normalization parameters to the appropriate device
     print(model)  # Print the model architecture with initialized weights

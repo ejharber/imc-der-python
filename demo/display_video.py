@@ -18,7 +18,7 @@ def set_logitech_camera_settings(camera, brightness=100, contrast=100, saturatio
     # Set exposure
     subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c white_balance_automatic=0", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
 
-    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c zoom_absolute=115", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c zoom_absolute=140", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
 
     subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c auto_exposure=1 -c exposure_time_absolute=140", shell=True)
     # subprocess.run(f"v4l2-ctl -d /dev/video4 -c auto_exposure=0 -c exposure_time_absolute=100", shell=True)
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     cap = cv2.VideoCapture(camera)  # Changed device index to 4
 
     # Set Logitech camera settings
-    # set_logitech_camera_settings(camera)
+    set_logitech_camera_settings(camera)
 
     # Display the video feed after applying the camera settings
     while True:
