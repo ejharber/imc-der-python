@@ -10,34 +10,24 @@ from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
+from geometry_msgs.msg import WrenchStamped
+from geometry_msgs.msg import PoseStamped
+from mocap4r2_msgs.msg import RigidBodies
 
 import time
 import os
 import threading
-
-# ros packages
-import rclpy
-from rclpy.node import Node
-from std_msgs.msg import String
-from sensor_msgs.msg import JointState
-from geometry_msgs.msg import WrenchStamped
-from geometry_msgs.msg import PoseStamped
-from rclpy.node import Node
-from mocap4r2_msgs.msg import RigidBodies
-import matplotlib.pyplot as plt
-
-import numpy as np
-import time
-
 import sys
 sys.path.append("../UR5e")
 from CustomRobots import *
 
 class UR5e_CollectData(Node):
-    def __init__(self):
+    def __init__(self, save_path, N):
         super().__init__('collect_rope_data')
 
         self.UR5e = UR5eCustom()
+        self.save_path = save_path  # Path where data will be saved
+        self.N = N  # Number of swings to perform
 
         self.home_joint_pose = [180, -53.25, 134.66, -171.28, -90, 0]
         self.home_cart_pose = None
@@ -51,16 +41,21 @@ class UR5e_CollectData(Node):
         self.mocap_subscription = self.create_subscription(RigidBodies, '/rigid_bodies', self.mocap_callback, 10)
         self.mocap_data = None
 
-        # # Image subscriber
-        # self.subscription = self.create_subscription(
-        #     Image,
-        #     'camera/raw_image',
-        #     self.image_callback,
-        #     1)
-        # self.bridge = CvBridge()
+        # Image subscriber
+        self.subscription = self.create_subscription(Image, '/camera/raw_image', self.image_callback, 10)
+        self.bridge = CvBridge()
+        self.img = None
+        self.mocap_data_actual = None
+        self.offset = 0
 
-        # Create scalable OpenCV window
-        # cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
+        self.video_saving = False  # Flag to control video saving state
+        self.video_writer = None  # Video writer for saving frames
+        self.frame_width = 640  # Set width and height based on your camera's resolution
+        self.frame_height = 480
+        self.save_path = save_path  # Directory to save video files
+
+        self.calibration = np.load("../visualization/calibration_data.npz")
+        self.mocap_data_actual = None
 
         self.ati_data_save = []
         self.mocap_data_save = []
@@ -99,17 +94,52 @@ class UR5e_CollectData(Node):
 
     def image_callback(self, msg):
         try:
-            img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-
-            # imgpoints, _ = cv2.projectPoints(self.mocap_data, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
-            # for i in range(imgpoints.shape[0]):
-            #     img = cv2.circle(img, (int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])), 3, (0,0,255), -1)
-
-            cv2.imshow("Image", img)
-            cv2.waitKey(1)
-
+            self.img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         except Exception as e:
             self.get_logger().error("Error converting image: %s" % str(e))
+
+    def image_display_thread(self):
+        # Create scalable OpenCV window
+        cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
+        while True:
+            img = self.img.copy() if self.img is not None else None  # Copy self.img to local img
+            if img is not None:
+                if self.mocap_data_actual is not None:
+                    mocap_data_actual = np.copy(self.mocap_data_actual)
+                    imgpoints, _ = cv2.projectPoints(mocap_data_actual, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
+                    for i in range(imgpoints.shape[0]):
+                        # Get the point coordinates
+                        x, y = int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])
+                        
+                        # Draw a plus sign with gold color
+                        color = (0, 215, 255)  # Gold color in BGR format
+
+                        # Draw horizontal line
+                        img = cv2.line(img, (x - 5, y), (x + 5, y), color, 2)
+                        # Draw vertical line
+                        img = cv2.line(img, (x, y - 5), (x, y + 5), color, 2)
+
+                cv2.imshow("Image", img)
+                cv2.waitKey(1)
+            time.sleep(0.2)
+
+    def save_video_frames(self):
+        while True:
+            img = self.img.copy() if self.img is not None else None  # Copy self.img to local img
+            if self.video_saving and img is not None:
+                if self.video_writer is None:
+                    print(img.shape)
+
+                    # Initialize the VideoWriter with output path and parameters
+                    video_file = os.path.join(self.save_path, f"{self.video_count}.mp4")
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    self.video_writer = cv2.VideoWriter(video_file, fourcc, 20.0, 
+                                                        (self.frame_width, self.frame_height))
+                
+                # Write the frame to the video file
+                self.video_writer.write(img)
+                
+            time.sleep(0.05)  # Adjust based on desired frame rate
 
     def go_to_home(self):
         print('go home')
@@ -125,51 +155,37 @@ class UR5e_CollectData(Node):
         self.ur5e_tool_data_save.append(self.rtde_r.getActualTCPPose())
         self.ur5e_jointstate_data_save.append(self.rtde_r.getActualQ())
 
-    def update_plot(self):
-        ati_data_save = np.array(self.mocap_data_save)
-        print(ati_data_save.shape)
-        self.line.set_xdata(np.arange(ati_data_save.shape[0]))
-        self.line.set_ydata(ati_data_save[:, 2])
-        self.ax.relim()
-        self.ax.autoscale_view()
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-
     def take_data_routine(self):
+        print("take data")
 
-        # Initialize Matplotlib in interactive mode
-        # plt.ion()
-        # self.fig, self.ax = plt.subplots()
-
-        # self.line, = self.ax.plot([], [], 'r-')  # Initialize an empty plot
         self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
         self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
-        print("take data")
-
-        N = 3 # take for 3 "levels" of experiments
-        # 2^3 = 8
-        # 3^3 = 27
-        # 4^3 = 64
-        # 5^3 = 125
         count = 0
-
         self.ati_data_save = []
         self.mocap_data_save = []
         self.ur5e_cmd_data_save = []
         self.ur5e_tool_data_save = []
         self.ur5e_jointstate_data_save = []
 
-        for dq1 in np.linspace(-10, 10, N):
-            for dq2 in np.linspace(-10, 10, N):
-                for dq3 in np.linspace(-12, 12, N):
+        for dq1 in np.linspace(-8, 8, self.N):
+            for dq2 in np.linspace(-8, 8, self.N):
+                for dq3 in np.linspace(-8, 8, self.N):
 
-                    # if count < 50:
+                    # if not (count == 16 or count == 21):
                     #     count += 1
-                    #     continue
+                    #     continue 
+
+                    if count < 49:
+                        count += 1
+                        continue 
+
+                    if self.N == 1:
+                        dq1 = 0
+                        dq2 = 0
+                        dq3 = 0
 
                     for trail in range(10):
-
                         self.ati_data_save = []
                         self.mocap_data_save = []
                         self.ur5e_cmd_data_save = []
@@ -180,18 +196,22 @@ class UR5e_CollectData(Node):
                         qf = [180, -90, 100, -180, -90, 0]
                         qf = [qf[0], dq1 + qf[1], dq2 + qf[2], dq3 + qf[3], qf[4], 0]
 
+                        # Start the video saving at the beginning of the swing
+                        self.video_count = count  # Track video sequence
+                        self.video_saving = True  # Start saving images to video
+
                         self.rope_swing(qf)
 
-                        if not np.any(np.array(self.mocap_data_save)[400:1100, :, :2] == 0): # need to change back to tip
+                        # Stop video saving at the end of the swing and release video writer
+                        self.video_saving = False
+                        if self.video_writer is not None:
+                            self.video_writer.release()
+                            self.video_writer = None
+
+                        if not np.any(np.array(self.mocap_data_save)[400:1100, :, :2] == 0):  # Check for tip visibility
                             break
                         else:
-                            print(np.where(np.array(self.mocap_data_save)[400:1100, :, :2] == 0))
                             print('could not find tip')
-
-
-                        # break
-
-                    # self.update_plot()
 
                     q0_save = np.array(np.copy(self.home_joint_pose))
                     qf_save = np.array(qf)
@@ -201,7 +221,10 @@ class UR5e_CollectData(Node):
                     ati_data_save = np.array(self.ati_data_save)
                     mocap_data_save = np.array(self.mocap_data_save)
 
-                    np.savez("raw_data_N3_2/" + str(count), q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, ur5e_cmd_data_save = ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
+                    np.savez(os.path.join(self.save_path, str(count)), 
+                             q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, 
+                             ur5e_cmd_data_save=ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, 
+                             ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
 
                     count += 1
 
@@ -209,7 +232,6 @@ class UR5e_CollectData(Node):
         exit()
 
     def rope_swing(self, q):
-
         self.go_to_home()
         self.reset_rope()
         self.go_to_home()
@@ -218,11 +240,9 @@ class UR5e_CollectData(Node):
         qf = np.copy(q)
 
         traj = self.UR5e.create_trajectory(q0, qf, time=1)
-
-        # Parameters
         velocity = 3
         acceleration = 5
-        dt = 1.0/500  # 2ms
+        dt = 1.0/500
         lookahead_time = 0.1
         gain = 1000
 
@@ -233,18 +253,19 @@ class UR5e_CollectData(Node):
         for i in range(traj.shape[1]):
             t_start = self.rtde_c.initPeriod()
             q = traj[:, i]
-
             self.rtde_c.servoJ(q, velocity, acceleration, dt, lookahead_time, gain)
             self.take_data()
-
             self.rtde_c.waitPeriod(t_start)
 
         for i in range(500):
             self.take_data()
             time.sleep(dt)
 
-        self.rtde_c.servoStop()
+            if self.offset is not None and i == self.offset:
+                print(self.mocap_data_save[-1].shape)
+                self.mocap_data_actual = np.copy(self.mocap_data_save[-1][:3, 2])
 
+        self.rtde_c.servoStop()
         self.go_to_home()
 
     def zero_ati(self):
@@ -254,35 +275,42 @@ class UR5e_CollectData(Node):
             ati_data.append(self.ati_data)
             time.sleep(0.01)
 
-        self.ati_data_zero = np.mean(np.array(ati_data), axis = 0)
-        print(self.ati_data_zero)
+        self.ati_data_zero = np.mean(np.array(ati_data), axis=0)
 
     def reset_rope(self):
         p = np.copy(self.home_cart_pose)
         p[2] -= 0.045
-        self.rtde_c.moveL(p, speed = 0.01, acceleration = 0.01)
-
+        self.rtde_c.moveL(p, speed=0.01, acceleration=0.01)
         time.sleep(0.5)
-
         p = np.copy(self.home_cart_pose)
-        self.rtde_c.moveL(p, speed = 0.005, acceleration = 0.01)
+        self.rtde_c.moveL(p, speed=0.005, acceleration=0.01)
         time.sleep(2)
-
-        # zero ati
         self.zero_ati()
 
 def main(args=None):
     rclpy.init(args=args)
 
-    ur5e = UR5e_CollectData()
+    # Parameters: save path and N (number of swings)
+    save_path = "raw_data_N4_ns"
+    N = 4  # Number of swings
+
+    ur5e = UR5e_CollectData(save_path=save_path, N=N)
 
     # Use MultiThreadedExecutor to run the node with multiple threads
     executor = MultiThreadedExecutor()
     executor.add_node(ur5e)
 
     # Start the repeat_data_routine in a separate thread
-    ur5e_thread = threading.Thread(target=ur5e.take_data_routine)
-    ur5e_thread.start()
+    data_collection_thread = threading.Thread(target=ur5e.take_data_routine)
+    data_collection_thread.start()
+
+    # Start the repeat_data_routine in a separate thread
+    video_display_thread = threading.Thread(target=ur5e.image_display_thread)
+    video_display_thread.start()
+
+    # Start the video_saving_thread upon initialization
+    video_saving_thread = threading.Thread(target=ur5e.save_video_frames)
+    video_saving_thread.start()
 
     try:
         # Spin the executor to process callbacks
@@ -292,7 +320,9 @@ def main(args=None):
     finally:
         ur5e.destroy_node()
         rclpy.shutdown()
-        ur5e_thread.join()
+        data_collection_thread.join()
+        video_display_thread.join()
+        video_saving_thread.join()
 
 if __name__ == '__main__':
     main()

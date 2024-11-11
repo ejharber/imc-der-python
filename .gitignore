@@ -1,17 +1,5 @@
-pardiso.lic 
-.idea/
+
 __pycache__
-grads_hessian_functions/
-datafiles/
-simDER
-inkscape_imgs/
-dataz/
-final_data/
-pull_force_plot.py
-energyplotter.py
-knot_tying_shots/
-data_plotter.py
-build
 
 *.npz
 *.npy
@@ -21,3 +9,4 @@ build
 *.pth
 *.png
 **/*.pth
+*.mp4

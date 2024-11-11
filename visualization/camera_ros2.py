@@ -38,10 +38,26 @@ class ImagePublisher(Node):
         super().__init__('image_publisher')
         self.publisher_ = self.create_publisher(Image, '/camera/raw_image', 1)
         self.bridge = CvBridge()
-        # Replace '0' with the index of your camera, or provide the file path if reading from a file
         camera = 0
-        set_logitech_camera_settings(0)
+        set_logitech_camera_settings(camera)
         self.cap = cv2.VideoCapture(camera)
+
+        # Retrieve current resolution
+        width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.get_logger().info(f'Original camera resolution: {int(width)}x{int(height)}')
+
+        # Set doubled resolution
+        doubled_width = int(640)
+        doubled_height = int(480)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, doubled_width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, doubled_height)
+
+        # Confirm the new resolution
+        new_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        new_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.get_logger().info(f'Doubled camera resolution: {int(new_width)}x{int(new_height)}')
+
         self.publish_images()
 
     def publish_images(self):
