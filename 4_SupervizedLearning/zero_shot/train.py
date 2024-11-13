@@ -37,8 +37,9 @@ def plot_curves(train_losses, test_losses, val_losses, folder):
     plt.show()
 
 # Load train/test data (the filename will be used for the checkpoint folder)
-dataset_name = "N2_all"
+dataset_name = "N2_pose"
 validation_dataset_name = "N3"
+validation_dataset_params_name = "N3"
 
 train_data, train_labels, test_data, test_labels, data_mean, data_std, labels_mean, labels_std = load_data_zeroshot(dataset_name)
 
@@ -59,9 +60,9 @@ labels_mean = torch.tensor(labels_mean, dtype=torch.float32)
 labels_std = torch.tensor(labels_std, dtype=torch.float32)
 
 # Load validation data
-val_actions, val_goals = load_realworlddata_zeroshot(validation_dataset_name)
-val_data = torch.tensor(val_actions, dtype=torch.float32)
-val_labels = torch.tensor(val_goals, dtype=torch.float32)
+valid_actions, valid_goals = load_realworlddata_zeroshot(validation_dataset_name, validation_dataset_params_name)
+valid_data = torch.tensor(valid_actions, dtype=torch.float32)
+valid_labels = torch.tensor(valid_goals, dtype=torch.float32)
 
 # Determine input size and output size from data
 input_size = train_data.shape[1]
@@ -72,8 +73,8 @@ train_dataset = TensorDataset(train_data, train_labels)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 test_dataset = TensorDataset(test_data, test_labels)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-val_dataset = TensorDataset(val_data, val_labels)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+valid_dataset = TensorDataset(valid_data, valid_labels)
+valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
 
 # Initialize the model and move it to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -84,7 +85,7 @@ optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
 # Training and evaluation loop
 train_losses = []
 test_losses = []
-val_losses = []
+valid_losses = []
 
 for epoch in range(num_epochs):
     model.train()  # Set the model to training mode
@@ -120,16 +121,16 @@ for epoch in range(num_epochs):
     test_losses.append(avg_test_loss)
     
     # Evaluation on validation set
-    total_val_loss = 0
+    total_valid_loss = 0
     with torch.no_grad():
-        for inputs, targets in val_loader:
+        for inputs, targets in valid_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs, test=True)
             loss = criterion(outputs, targets)
-            total_val_loss += loss.item()
+            total_valid_loss += loss.item()
     
-    avg_val_loss = total_val_loss / len(val_loader)
-    val_losses.append(avg_val_loss)
+    avg_valid_loss = total_valid_loss / len(valid_loader)
+    valid_losses.append(avg_valid_loss)
     
     # Print epoch loss
     print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.6f}, Test Loss: {avg_test_loss:.6f}, Validation Loss: {avg_val_loss:.6f}')
@@ -142,7 +143,7 @@ for epoch in range(num_epochs):
             'optimizer_state_dict': optimizer.state_dict(),
             'train_losses': train_losses,
             'test_losses': test_losses,
-            'val_losses': val_losses,
+            'valid_losses': valid_losses,
             'input_size': input_size,
             'hidden_size': hidden_size,
             'num_layers': num_layers,
@@ -157,7 +158,7 @@ for epoch in range(num_epochs):
         print(f'Saved checkpoint: {checkpoint_path}')
 
 # Plotting and saving curves
-plot_curves(train_losses, test_losses, val_losses, checkpoint_folder)
+plot_curves(train_losses, test_losses, valid_losses, checkpoint_folder)
 
 # Save final model parameters and training curves
 final_model_path = os.path.join(checkpoint_folder, 'final_model_checkpoint.pth')
@@ -166,7 +167,7 @@ torch.save({
     'optimizer_state_dict': optimizer.state_dict(),
     'train_losses': train_losses,
     'test_losses': test_losses,
-    'val_losses': val_losses,
+    'valid_losses': valid_losses,
     'input_size': input_size,
     'hidden_size': hidden_size,
     'num_layers': num_layers,

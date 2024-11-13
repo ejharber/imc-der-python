@@ -31,5 +31,5 @@ def check_video_files(directory_path):
         print("\nAll video files are playable.")
 
 # Usage
-directory_path = '../1_DataCollection/raw_data_N4_ns'
+directory_path = '../../1_DataCollection/raw_data_N2_ns'
 check_video_files(directory_path)

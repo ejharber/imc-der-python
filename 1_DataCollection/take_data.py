@@ -22,7 +22,7 @@ sys.path.append("../UR5e")
 from CustomRobots import *
 
 class UR5e_CollectData(Node):
-    def __init__(self, save_path, N):
+    def __init__(self, save_path, N=None):
         super().__init__('collect_rope_data')
 
         self.UR5e = UR5eCustom()
@@ -62,6 +62,8 @@ class UR5e_CollectData(Node):
         self.ur5e_cmd_data_save = []
         self.ur5e_tool_data_save = []
         self.ur5e_jointstate_data_save = []
+        self.ros_time_save = []
+        self.ros_time_camera_save = []
 
         timer_period = 0.002
         self.timer = self.create_timer(timer_period, self.timer_callback)
@@ -124,20 +126,24 @@ class UR5e_CollectData(Node):
             time.sleep(0.2)
 
     def save_video_frames(self):
+
         while True:
             img = self.img.copy() if self.img is not None else None  # Copy self.img to local img
             if self.video_saving and img is not None:
                 if self.video_writer is None:
-                    print(img.shape)
-
+                    self.ros_time_camera_save = []
                     # Initialize the VideoWriter with output path and parameters
                     video_file = os.path.join(self.save_path, f"{self.video_count}.mp4")
                     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                    self.video_writer = cv2.VideoWriter(video_file, fourcc, 20.0, 
+                    self.video_writer = cv2.VideoWriter(video_file, fourcc, 30.0, 
                                                         (self.frame_width, self.frame_height))
                 
                 # Write the frame to the video file
                 self.video_writer.write(img)
+                # Get the current ROS 2 time and store as a float
+                ros_time = Clock().now()
+                ros_time_float = ros_time.nanoseconds * 1e-9  # Convert nanoseconds to seconds
+                self.ros_time_camera_save.append(ros_time_float)
                 
             time.sleep(0.05)  # Adjust based on desired frame rate
 
@@ -151,9 +157,15 @@ class UR5e_CollectData(Node):
     def take_data(self):
         self.ati_data_save.append(self.ati_data - self.ati_data_zero)
         self.mocap_data_save.append(self.mocap_data)
+        self.mocap_data_2d.append() # TODO
         self.ur5e_cmd_data_save.append(self.rtde_r.getTargetQ())
         self.ur5e_tool_data_save.append(self.rtde_r.getActualTCPPose())
         self.ur5e_jointstate_data_save.append(self.rtde_r.getActualQ())
+
+        # Get the current ROS 2 time and store as a float
+        ros_time = Clock().now()
+        ros_time_float = ros_time.nanoseconds * 1e-9  # Convert nanoseconds to seconds
+        self.ros_time_save.append(ros_time_float)
 
     def take_data_routine(self):
         print("take data")
@@ -167,6 +179,7 @@ class UR5e_CollectData(Node):
         self.ur5e_cmd_data_save = []
         self.ur5e_tool_data_save = []
         self.ur5e_jointstate_data_save = []
+        self.ros_time_save = []
 
         for dq1 in np.linspace(-8, 8, self.N):
             for dq2 in np.linspace(-8, 8, self.N):
@@ -200,7 +213,7 @@ class UR5e_CollectData(Node):
                         self.video_count = count  # Track video sequence
                         self.video_saving = True  # Start saving images to video
 
-                        self.rope_swing(qf)
+                        success = self.rope_swing(qf)
 
                         # Stop video saving at the end of the swing and release video writer
                         self.video_saving = False
@@ -220,11 +233,14 @@ class UR5e_CollectData(Node):
                     ur5e_jointstate_data_save = np.array(self.ur5e_jointstate_data_save)
                     ati_data_save = np.array(self.ati_data_save)
                     mocap_data_save = np.array(self.mocap_data_save)
+                    ros_time_save = np.array(self.ros_time_save)
+                    ros_time_camera_save = np.array(self.ros_time_camera_save)
 
                     np.savez(os.path.join(self.save_path, str(count)), 
                              q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, 
                              ur5e_cmd_data_save=ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, 
-                             ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
+                             ati_data_save=ati_data_save, mocap_data_save=mocap_data_save, 
+                             ros_time_save=ros_time_save, ros_time_camera_save=ros_time_camera_save)
 
                     count += 1
 
@@ -245,6 +261,7 @@ class UR5e_CollectData(Node):
         dt = 1.0/500
         lookahead_time = 0.1
         gain = 1000
+        success = True
 
         for i in range(500):
             self.take_data()
@@ -255,6 +272,7 @@ class UR5e_CollectData(Node):
             q = traj[:, i]
             self.rtde_c.servoJ(q, velocity, acceleration, dt, lookahead_time, gain)
             self.take_data()
+            print(q, self.self.ur5e_jointstate_data_save[-1])
             self.rtde_c.waitPeriod(t_start)
 
         for i in range(500):
@@ -262,11 +280,12 @@ class UR5e_CollectData(Node):
             time.sleep(dt)
 
             if self.offset is not None and i == self.offset:
-                print(self.mocap_data_save[-1].shape)
                 self.mocap_data_actual = np.copy(self.mocap_data_save[-1][:3, 2])
 
         self.rtde_c.servoStop()
         self.go_to_home()
+
+        return success
 
     def zero_ati(self):
         ati_data = []

@@ -29,20 +29,15 @@ class LSTMMLPModel(nn.Module):
         self.output_layer = nn.Linear(hidden_size_mlp, output_size)
         self.relu = nn.ReLU()
 
-        self.delta_actions_mean = delta_actions_mean 
-        self.delta_actions_std = delta_actions_std
-        self.delta_goals_mean = delta_goals_mean
-        self.delta_goals_std = delta_goals_std
-        self.traj_pos_mean = traj_pos_mean
-        self.traj_pos_std = traj_pos_std
+        # Store the means and stds as tensors if they exist
+        self.delta_actions_mean = delta_actions_mean if delta_actions_mean is None else torch.tensor(delta_actions_mean, dtype=torch.float32)
+        self.delta_actions_std = delta_actions_std if delta_actions_std is None else torch.tensor(delta_actions_std, dtype=torch.float32)
+        self.delta_goals_mean = delta_goals_mean if delta_goals_mean is None else torch.tensor(delta_goals_mean, dtype=torch.float32)
+        self.delta_goals_std = delta_goals_std if delta_goals_std is None else torch.tensor(delta_goals_std, dtype=torch.float32)
+        self.traj_pos_mean = traj_pos_mean if traj_pos_mean is None else torch.tensor(traj_pos_mean, dtype=torch.float32)
+        self.traj_pos_std = traj_pos_std if traj_pos_std is None else torch.tensor(traj_pos_std, dtype=torch.float32)
 
     def forward(self, x_lstm, x_classic, test=False):
-        if self.x_lstm_type == 0:
-            x_lstm = x_lstm
-        elif self.x_lstm_type == 1:
-            x_lstm = x_lstm[:, :, :2]  # Take the first two dimensions
-        elif self.x_lstm_type == 2:
-            x_lstm = x_lstm[:, :, 2:3]  # Take the third dimension
 
         if test:
             x_lstm = x_lstm - self.traj_pos_mean
@@ -50,6 +45,13 @@ class LSTMMLPModel(nn.Module):
 
             x_classic = x_classic - self.delta_actions_mean
             x_classic = x_classic / self.delta_actions_std
+
+        if self.x_lstm_type == 0:
+            x_lstm = x_lstm
+        elif self.x_lstm_type == 1:
+            x_lstm = x_lstm[:, :, :2]  # Take the first two dimensions
+        elif self.x_lstm_type == 2:
+            x_lstm = x_lstm[:, :, 2:3]  # Take the third dimension
 
         h0 = torch.zeros(self.num_layers_lstm, x_lstm.size(0), self.hidden_size_lstm).to(x_lstm.device)
         c0 = torch.zeros(self.num_layers_lstm, x_lstm.size(0), self.hidden_size_lstm).to(x_lstm.device)
@@ -72,3 +74,22 @@ class LSTMMLPModel(nn.Module):
             out = out + self.delta_goals_mean
         
         return out
+
+    def to(self, device):
+        model = super(LSTMMLPModel, self).to(device)
+        
+        # Move additional tensors to the specified device
+        if self.delta_actions_mean is not None:
+            self.delta_actions_mean = self.delta_actions_mean.to(device)
+        if self.delta_actions_std is not None:
+            self.delta_actions_std = self.delta_actions_std.to(device)
+        if self.delta_goals_mean is not None:
+            self.delta_goals_mean = self.delta_goals_mean.to(device)
+        if self.delta_goals_std is not None:
+            self.delta_goals_std = self.delta_goals_std.to(device)
+        if self.traj_pos_mean is not None:
+            self.traj_pos_mean = self.traj_pos_mean.to(device)
+        if self.traj_pos_std is not None:
+            self.traj_pos_std = self.traj_pos_std.to(device)
+        return model
+
