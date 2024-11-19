@@ -18,16 +18,16 @@ hidden_size = 2000
 num_layers = 5
 output_size = None  # To be determined after loading data
 batch_size = 512
-num_epochs = 500
+num_epochs = 1000
 learning_rate = 0.0001
 momentum = 0.9
 checkpoint_freq = 50  # Frequency to save checkpoints
 
-def plot_curves(train_losses, test_losses, val_losses, folder):
+def plot_curves(train_losses, test_losses, valid_losses, folder):
     plt.figure(figsize=(10, 5))
     plt.plot(train_losses, label='Train Loss')
     plt.plot(test_losses, label='Test Loss')
-    plt.plot(val_losses, label='Validation Loss')  # Add validation losses to the plot
+    plt.plot(valid_losses, label='Validation Loss')  # Add validation losses to the plot
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.title('Training, Testing, and Validation Losses')
@@ -37,7 +37,7 @@ def plot_curves(train_losses, test_losses, val_losses, folder):
     plt.show()
 
 # Load train/test data (the filename will be used for the checkpoint folder)
-dataset_name = "N2_pose"
+dataset_name = "N2_all"
 validation_dataset_name = "N3"
 validation_dataset_params_name = "N3"
 
@@ -133,7 +133,7 @@ for epoch in range(num_epochs):
     valid_losses.append(avg_valid_loss)
     
     # Print epoch loss
-    print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.6f}, Test Loss: {avg_test_loss:.6f}, Validation Loss: {avg_val_loss:.6f}')
+    print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.6f}, Test Loss: {avg_test_loss:.6f}, Validation Loss: {avg_valid_loss:.6f}')
     
     # Save checkpoint every checkpoint_freq epochs
     if (epoch + 1) % checkpoint_freq == 0:

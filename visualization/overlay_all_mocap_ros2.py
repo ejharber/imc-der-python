@@ -48,7 +48,6 @@ class ImageSubscriber(Node):
         try:
             img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
 
-
             if len(self.mocap_history) > 0:
                 mocap_data = []
                 for marker in self.mocap_history[0]:
@@ -57,11 +56,12 @@ class ImageSubscriber(Node):
                 # print(mocap_data)
 
                 imgpoints, _ = cv2.projectPoints(mocap_data, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
+                # imgpoints = imgpoints 
                 for i in range(imgpoints.shape[0]):
                     # print((int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])))
                     # print(img.shape)
                     if imgpoints[i, 0, 0] < 0 or imgpoints[i, 0, 1] < 0: continue 
-                    if imgpoints[i, 0, 0] > img.shape[0] or imgpoints[i, 0, 1] > img.shape[1]: continue 
+                    if imgpoints[i, 0, 0] > img.shape[1] or imgpoints[i, 0, 1] > img.shape[0]: continue 
                     img = cv2.circle(img, (int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])), 3, (0,0,255), -1)
 
                 cv2.imshow("Image", img)

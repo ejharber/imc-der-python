@@ -25,7 +25,7 @@ def set_logitech_camera_settings(camera, brightness=100, contrast=100, saturatio
 
     subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c zoom_absolute=140", shell=True)  # Set exposure_auto_priority to 0 for manual exposure
 
-    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c auto_exposure=1 -c exposure_time_absolute=140", shell=True)
+    subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c auto_exposure=1 -c exposure_time_absolute=80", shell=True)
     # subprocess.run(f"v4l2-ctl -d /dev/video4 -c auto_exposure=0 -c exposure_time_absolute=100", shell=True)
 
     subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c focus_automatic_continuous=0", shell=True)
@@ -48,8 +48,8 @@ class ImagePublisher(Node):
         self.get_logger().info(f'Original camera resolution: {int(width)}x{int(height)}')
 
         # Set doubled resolution
-        doubled_width = int(640)
-        doubled_height = int(480)
+        doubled_width = int(640 * 8)
+        doubled_height = int(480 * 8)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, doubled_width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, doubled_height)
 

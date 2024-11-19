@@ -36,9 +36,6 @@ class CollectData(Node):
 
     def trigger_callback(self, msg):
 
-        # ros2 launch mocap_vicon_driver mocap_vicon_driver_launch.py 
-        # ros2 launch realsense2_camera rs_launch.py
-
         # ros2 topic pub --rate 1 /trigger std_msgs/msg/Empty
         # ros2 topic pub --once /trigger std_msgs/msg/Empty
 

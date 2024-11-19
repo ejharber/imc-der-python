@@ -13,13 +13,13 @@ from load_data import *
 from model_iterative import LSTMMLPModel
 
 # Define model parameters at the beginning
-train_dataset_name = "N2_pose"  # Specify your dataset name
-train_params_file_name = "N2_pose"
+train_dataset_name = "N2_all"  # Specify your dataset name
+train_params_file_name = "N2_all"
 validation_dataset_name = "N3"
 validation_params_file_name = "N3"
 
 # Define x_lstm_type
-x_lstm_type = 1  # 0: all dimensions, 1: first two dimensions, 2: third dimension
+x_lstm_type = 0  # 0: all dimensions, 1: first two dimensions, 2: third dimension
 
 input_size_lstm = None  # To be determined after loading data
 input_size_classic = None  # To be determined after loading data

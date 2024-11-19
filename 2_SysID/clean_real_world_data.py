@@ -18,25 +18,37 @@ def clean_data(robot_data, mocap_data, ati_data, q0, qf):
 
     mocap_data_rope_base = mocap_data[556:1056, :, 1]
     mocap_data_base = mocap_data[500, :, 0]
-    mocap_data_rope_base = UR5e.convert_worktraj_to_robot(mocap_data_rope_base, mocap_data_base)
-    traj_rope_base = mocap_data_rope_base[:, [0, 2]]
+    mocap_data_rope_base = UR5e.convert_worktraj_to_robot(mocap_data_rope_base, mocap_data_base, two_dimention=True)
 
-    plt.figure("pose traj")
-    plt.plot(traj[:, [0, 1]], 'r-', label='sim')
-    plt.plot(traj_rope_base, 'b-', label='mocap')
-    plt.legend()
-    # plt.show()
+    # plt.figure("pose traj")
+    # plt.plot(traj[:, [0, 1]], 'r-', label='sim')
+    # plt.plot(traj_rope_base, 'b-', label='mocap')
+    # plt.legend()
+    # # plt.show()
     # exit()
 
     mocap_data_rope = mocap_data[500:1200, :, 2]
     mocap_data_base = mocap_data[500, :, 0]
-    mocap_data_rope = UR5e.convert_worktraj_to_robot(mocap_data_rope, mocap_data_base)
-    traj_rope_tip = mocap_data_rope[:, [0, 2]]
+    print(mocap_data_rope.shape, mocap_data_base.shape)
+    # mocap_data_rope[0, :3]
+    print(UR5e.convert_workpoint_to_robot(mocap_data_rope[0, :3], mocap_data_base, two_dimention=True))
+    mocap_data_rope = UR5e.convert_worktraj_to_robot(mocap_data_rope, mocap_data_base, two_dimention=True)
+
+    print(mocap_data_rope)
+
+    plt.figure("pose traj")
+    # plt.plot(mocap_data_rope[:, [0, 1]], 'r-', label='sim')
+    plt.plot(mocap_data_rope[:, 0], mocap_data_rope[:, 1], 'b-', label='mocap')
+    plt.legend()
+    plt.show()
+    exit()
+
+
     # traj_rope_tip = np.copy(traj_rope_base) * 0
 
-    plt.figure("force traj")
-    plt.plot(ati_data[:, 3:])
-    plt.show()
+    # plt.figure("force traj")
+    # plt.plot(ati_data[:, 3:])
+    # plt.show()
 
     traj_force = ati_data[500:1200, 2]
     # traj_force = ati_data - ati_data[0]
@@ -56,7 +68,7 @@ def clean_data(robot_data, mocap_data, ati_data, q0, qf):
 def clean_raw_data():
 
     file_path = "../1_DataCollection/"
-    folder_name = "raw_data_N4"
+    folder_name = "raw_data_N4_ns"
 
     traj_robot_tool_save = []
     traj_rope_base_save = []
@@ -67,14 +79,16 @@ def clean_raw_data():
 
     for file in os.listdir(file_path + folder_name):
 
-        print(file)
+        if not file.endswith('.npz'):
+            continue  # Skip files that do not end with .npz
 
         file_name = file_path + folder_name + "/" + file
         data = np.load(file_name)
 
         traj_robot_tool, traj_rope_base, traj_rope_tip, traj_force = clean_data(data["ur5e_tool_data_save"], data["mocap_data_save"], data["ati_data_save"], data["q0_save"], data["qf_save"])
 
-        # if np.any(traj_force > 100) or np.any(traj_force < -100): continue
+        # if np.any(traj_force > 100) or np.any(traj_force < -100): 
+        #     continue
 
         traj_robot_tool_save.append(traj_robot_tool)
         traj_rope_base_save.append(traj_rope_base)
@@ -104,7 +118,7 @@ def clean_raw_data():
 
     print(traj_robot_tool_save.shape, traj_rope_base_save.shape, traj_rope_tip_save.shape, traj_force_save.shape, q0_save.shape, qf_save.shape)
 
-    np.savez("filtered_data/N4.npz", traj_robot_tool_save=traj_robot_tool_save, traj_rope_base_save=traj_rope_base_save, traj_rope_tip_save=traj_rope_tip_save, 
+    np.savez("filtered_data/" + folder_name, traj_robot_tool_save=traj_robot_tool_save, traj_rope_base_save=traj_rope_base_save, traj_rope_tip_save=traj_rope_tip_save, 
                                                   traj_force_save=traj_force_save, q0_save=q0_save, qf_save=qf_save)
 
 if __name__ == "__main__":

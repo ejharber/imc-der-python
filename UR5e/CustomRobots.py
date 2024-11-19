@@ -233,6 +233,9 @@ class UR5eCustom(Robot):
 
         out = convert_matrix_to_quat(traj_world)
 
+        if two_dimention:
+            out = out[:, [0, 2]]
+
         return out
 
     def convert_workpoint_to_robot(self, point_world, mocap_base_to_world, two_dimention=False):
@@ -262,11 +265,13 @@ class UR5eCustom(Robot):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         T_base2_base1 = np.load(dir_path + "/mocap_calib.npz")["T_base2_base1"]
 
-        point_world = [point_world[0], point_world[1], point_world[2], 0]
+        point_world = [point_world[0], point_world[1], point_world[2], 1]
         out = np.linalg.inv(mocap_base_to_world @ T_base2_base1) @ point_world
 
-        print(out)
-        return out[[0, 2]]
+        if two_dimention:
+            out = out[[0, 2]]
+
+        return out
 
     def convert_robotpoint_to_world(self, goal, mocap_base_to_world):
         def convert_quat_to_matrix(vec):

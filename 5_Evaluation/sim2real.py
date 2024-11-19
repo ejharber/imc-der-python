@@ -1,3 +1,5 @@
+import faulthandler
+
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
@@ -51,36 +53,53 @@ class UR5e_EvaluateZeroShot(UR5e_CollectData):
         self.mocap_data_goal = None
 
     def image_display_thread(self):
-        # Create scalable OpenCV window
+    # Create scalable OpenCV window
         cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
         while True:
-            img = self.img.copy() if self.img is not None else None
+            with self.lock:
+                img = self.img.copy() if self.img is not None else None
             if img is not None:
+                if len(self.mocap_data_camera_save) > 0:
+                    points = self.mocap_data_camera_save[-1]
+                    for i in range(points.shape[0]):
+                        x, y = points[i, :]
+                        # y = int(points[i, 1])
 
-                if self.mocap_data_goal is not None:
-                    mocap_data_goal = np.copy(self.mocap_data_goal)
-                    imgpoints, _ = cv2.projectPoints(mocap_data_goal, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
-                    for i in range(imgpoints.shape[0]):
-                        x, y = int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])
-                        color = (0, 255, 0)  
+                        # # Draw a plus sign with gold color
+                        color = (0, 215, 255)  # Gold color in BGR format
+
+                        # Draw horizontal line
                         img = cv2.line(img, (x - 5, y), (x + 5, y), color, 2)
+                        # Draw vertical line
                         img = cv2.line(img, (x, y - 5), (x, y + 5), color, 2)
 
-                if self.mocap_data_actual is not None:
-                    mocap_data_actual = np.copy(self.mocap_data_actual)
-                    imgpoints, _ = cv2.projectPoints(mocap_data_actual, self.calibration["R"], self.calibration["t"], self.calibration["mtx"], self.calibration["dist"])
-                    for i in range(imgpoints.shape[0]):
-                        x, y = int(imgpoints[i, 0, 0]), int(imgpoints[i, 0, 1])
-                        color = (0, 215, 255)
-                        img = cv2.line(img, (x - 5, y), (x + 5, y), color, 2)
-                        img = cv2.line(img, (x, y - 5), (x, y + 5), color, 2)
+                if self.goal_camera_save is not None:
+                    x, y = self.goal_camera_save[0]
+
+                    # y = int(points[i, 1])
+
+                    # # Draw a plus sign with gold color
+                    color = (0, 255, 0)  # Gold color in BGR format
+
+                    # Draw horizontal line
+                    img = cv2.line(img, (x - 5, y), (x + 5, y), color, 2)
+                    # Draw vertical line
+                    img = cv2.line(img, (x, y - 5), (x, y + 5), color, 2)
 
                 cv2.imshow("Image", img)
                 cv2.waitKey(1)
             time.sleep(0.2)
 
+
+    def reset_data(self):
+        super().reset_data()
+
+        self.goal_mocap_save = None
+        self.goal_robot_save = None
+        self.goal_camera_save = None
+
     def load_model(self): 
-        _, _, _, self.goals, _, _, _, _ = load_data_zeroshot(self.model_file, noramlize=False)
+        _, _, _, self.goals, _, _, _, _ = load_data_zeroshot("eval", noramlize=False)
 
         filepath = f'../4_SupervizedLearning/zero_shot/checkpoints_{self.model_file}/final_model_checkpoint.pth'
         checkpoint = torch.load(filepath)
@@ -106,7 +125,7 @@ class UR5e_EvaluateZeroShot(UR5e_CollectData):
             random_actions[:, 2] += np.random.rand(num_samples) * 16 - 8
             return random_actions
 
-        def evaluate_model_on_random_goal(goal):
+        def evaluate_model(goal):
             self.model.eval()
             with torch.no_grad():
                 random_actions = sample_actions()
@@ -120,57 +139,96 @@ class UR5e_EvaluateZeroShot(UR5e_CollectData):
         self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
         self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
-        errors = []
+        self.reset_data()
+
         self.go_to_home()
 
         for count in range(self.num_samples):
 
             print(count)
 
-            if count < 27: continue 
+            if count < 46: continue 
 
-            self.mocap_data_goal = self.UR5e.convert_robotpoint_to_world(self.goals[count, :], self.mocap_data[:, 0])
-            best_action = evaluate_model_on_random_goal(torch.tensor(self.goals[count, :], dtype=torch.float32).to(self.device))
+            best_action = evaluate_model(torch.tensor(self.goals[count, :], dtype=torch.float32).to(self.device))
 
             q0 = [180, -53.25, 134.66, -171.28, -90, 0]
             qf = [180, -90, 100, -180, -90, 0]
             qf[1], qf[2], qf[3] = best_action
 
             for trial in range(10):
-                self.mocap_data_actual = None
-                self.ati_data_save, self.mocap_data_save = [], []
-                self.ur5e_cmd_data_save, self.ur5e_tool_data_save, self.ur5e_jointstate_data_save = [], [], []
+
+                self.reset_data()
+
+                self.goal_robot_save = self.goals[count, :]
+                self.goal_mocap_save = self.UR5e.convert_robotpoint_to_world(self.goals[count, :], self.mocap_data[:, 0])
+                self.goal_camera_save = self.project_mocap_to_camera(self.goal_mocap_save)
+
+                self.go_to_home()
+                self.reset_rope()
+                self.go_to_home()
 
                 self.video_count = count
                 self.video_saving = True
-                self.rope_swing(qf)
-                self.video_saving = False
-                if self.video_writer:
-                    self.video_writer.release()
-                    self.video_writer = None
 
-                if not np.any(np.array(self.mocap_data_save)[400:1100, :, :2] == 0):
+                success = self.rope_swing(qf)
+                
+                self.go_to_home()
+
+                # Stop video saving at the end of the swing and release video writer
+                with self.lock:
+                    self.video_saving = False
+                    if self.video_writer is not None:
+                        self.video_writer.release()
+                        self.video_writer = None
+
+                # Check if the video writer had an error, and retry the current trial if necessary
+                if self.video_writer_error:
+                    print(f"Error occurred during video saving. Retrying trial {count}...")
+                    continue  # Skip to the next trial
+
+                if not success:
+                    print("UR5e error, swing again")
+                    continue 
+
+                if not np.any(np.array(self.mocap_data_save)[400:1100, :, :] == 0):
                     break
                 else:
-                    print('could not find tip')
+                    print('could not find a mocap frame, swing again')
 
-            q0_save, qf_save = np.array(self.home_joint_pose), np.array(qf)
-            ur5e_tool_data_save, ur5e_cmd_data_save = np.array(self.ur5e_tool_data_save), np.array(self.ur5e_cmd_data_save)
-            ur5e_jointstate_data_save, ati_data_save, mocap_data_save = np.array(self.ur5e_jointstate_data_save), np.array(self.ati_data_save), np.array(self.mocap_data_save)
+            q0_save = np.array(np.copy(self.home_joint_pose))
+            qf_save = np.array(qf)
+            ur5e_tool_data_save = np.array(self.ur5e_tool_data_save)
+            ur5e_cmd_data_save = np.array(self.ur5e_cmd_data_save)
+            ur5e_jointstate_data_save = np.array(self.ur5e_jointstate_data_save)
+            ati_data_save = np.array(self.ati_data_save)
+            mocap_data_save = np.array(self.mocap_data_save)
+            mocap_data_camera_save = np.array(self.mocap_data_camera_save)
+            mocap_data_robot_save = np.array(self.mocap_data_robot_save)
+            ros_time_save = np.array(self.ros_time_save)
+            ros_time_camera_save = np.array(self.ros_time_camera_save)
+
+            goal_robot_save = np.array(self.goal_robot_save)
+            goal_mocap_save = np.array(self.goal_mocap_save)
+            goal_camera_save = np.array(self.goal_camera_save)
 
             np.savez(os.path.join(self.save_path, str(count)), 
                      q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, 
                      ur5e_cmd_data_save=ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, 
-                     ati_data_save=ati_data_save, mocap_data_save=mocap_data_save)
+                     ati_data_save=ati_data_save, mocap_data_save=mocap_data_save, mocap_data_camera_save=mocap_data_camera_save, mocap_data_robot_save=mocap_data_robot_save,
+                     goal_robot_save=goal_robot_save, goal_mocap_save=goal_mocap_save, goal_camera_save=goal_camera_save, 
+                     ros_time_save=ros_time_save, ros_time_camera_save=ros_time_camera_save)
 
         print("done")
 
 def main(args=None):
+    # Enable the fault handler
+    faulthandler.enable()
+
     rclpy.init(args=args)
 
-    save_path = "pose"
-    model_file = "N2_all"
-    num_samples = 100
+    save_path = "N2_pose"
+    model_file = "N2_pose"
+    num_samples = 50
 
     ur5e = UR5e_EvaluateZeroShot(save_path=save_path, model_file=model_file, num_samples=num_samples)
 
@@ -180,8 +238,8 @@ def main(args=None):
     evaluate_zeroshot_thread = threading.Thread(target=ur5e.evaluate_zeroshot)
     evaluate_zeroshot_thread.start()
 
-    video_display_thread = threading.Thread(target=ur5e.image_display_thread)
-    video_display_thread.start()
+    # video_display_thread = threading.Thread(target=ur5e.image_display_thread)
+    # video_display_thread.start()
 
     video_saving_thread = threading.Thread(target=ur5e.save_video_frames)
     video_saving_thread.start()
