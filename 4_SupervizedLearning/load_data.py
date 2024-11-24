@@ -7,7 +7,7 @@ from CustomRobots import *
 
 import matplotlib.pyplot as plt
 
-def load_data_zeroshot(folder_name, seed=0, noramlize=True):
+def load_data_zeroshot(folder_name, seed=0, normalize=True):
     np.random.seed(seed)  # Set the random seed for reproducibility
 
     actions = np.empty((0, 3))  # Predefine empty array for actions
@@ -32,7 +32,7 @@ def load_data_zeroshot(folder_name, seed=0, noramlize=True):
     actions_std = np.std(actions, axis=0)
     
     # Normalize actions
-    if noramlize:
+    if normalize:
         actions = (actions - actions_mean) / actions_std
 
     # Calculate mean and standard deviation of goals
@@ -40,7 +40,7 @@ def load_data_zeroshot(folder_name, seed=0, noramlize=True):
     goals_std = np.std(goals, axis=0)
     
     # Normalize goals
-    if noramlize:
+    if normalize:
         goals = (goals - goals_mean) / goals_std
 
     # Create a list of indices
@@ -98,31 +98,30 @@ def load_data_iterative(filter_data_file_name, params_file_name, seed=0, normali
 
         data = np.load(os.path.join(folder_path, file))
 
-        actions = data["qf_save"][:400, [1, 2, 3]]
-        goals = data["traj_pos_save"][:400, -1, :]
+        actions = data["qf_save"][:800, [1, 2, 3]]
+        goals = data["traj_pos_save"][:800, -1, :]
 
-        split = 200
+        split = 400
 
         # Compute deltas and append
-        delta_actions = np.append(delta_actions, actions[:split, :] - actions[split:, :], axis=0)
-        delta_goals = np.append(delta_goals, goals[:split, :] - goals[split:, :], axis=0)
+        delta_actions = np.append(delta_actions, actions[split:, :] - actions[:split, :] , axis=0)
+        # delta_goals = np.append(delta_goals, goals[split:, :], axis=0)
+        delta_goals = np.append(delta_goals, goals[split:, :] - goals[:split, :], axis=0)
 
         # Combine position and force trajectories and add noise
         traj_data = np.append(data["traj_pos_save"][:split, :, :], data["traj_force_save"][:split, :, :], axis=2)
 
-        # traj_data[:, :, 0] += np.random.normal(0, std_x, traj_data[:, :, 0].shape)
-        # traj_data[:, :, 1] += np.random.normal(0, std_y, traj_data[:, :, 1].shape)
-        # traj_data[:, :, 2] += np.random.normal(0, std_ati, traj_data[:, :, 2].shape)
+        traj_data[:, :, 0] += np.random.normal(0, std_x, traj_data[:, :, 0].shape)
+        traj_data[:, :, 1] += np.random.normal(0, std_y, traj_data[:, :, 1].shape)
+        traj_data[:, :, 2] += np.random.normal(0, std_ati, traj_data[:, :, 2].shape)
 
         traj = np.append(traj, traj_data, axis=0)
 
         if subset:
             break
 
-
     print(traj_data.shape)
     # Add random noise to traj_data
-
 
     # Calculate mean and standard deviation for normalization
     delta_actions_mean, delta_actions_std = np.mean(delta_actions, axis=0), np.std(delta_actions, axis=0)
@@ -170,9 +169,9 @@ def load_realworlddata_iterative(filter_data_file_name, params_file_name, seed=0
     traj = np.append(traj_pos, traj_force, axis=2)
 
     # Compute delta actions, goals, and trajectories
-    delta_actions = actions[:, np.newaxis, :] - actions[np.newaxis, :, :]
-    delta_goals = goals[:, np.newaxis, :] - goals[np.newaxis, :, :]
-    traj = traj[:, np.newaxis, :, :]  - 0 * traj[np.newaxis, :, :]
+    delta_actions = actions[np.newaxis, :, :] - actions[:, np.newaxis, :]
+    delta_goals = goals[np.newaxis, :, :] - goals[:, np.newaxis, :]
+    traj = 0 * traj[np.newaxis, :, :] + traj[:, np.newaxis, :, :]
 
     # Reshape deltas for concatenation
     delta_actions = delta_actions.reshape(-1, delta_actions.shape[-1])

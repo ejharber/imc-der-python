@@ -37,59 +37,31 @@ from load_data import load_data_zeroshot
 sys.path.append("../4_SupervizedLearning/zero_shot")
 from model_zeroshot import SimpleMLP
 
+sys.path.append("../4_SupervizedLearning/iterative")
+from model_iterative import LSTMMLPModel
+
 import matplotlib.pyplot as plt
 
 class UR5e_EvaluateIterative(UR5e_CollectData):
-    def __init__(self, save_path, model_file="N2_all", num_samples=10000):
+    def __init__(self, save_path, zeroshot_model_file="N2_all", iterative_model_file="N2_all", params_file="N3_all", num_samples=10000):
         super().__init__(save_path)
-        self.model_file = model_file  # Model file name parameter
+        self.zeroshot_model_file = zeroshot_model_file  # Model file name parameter
+        self.iterative_model_file = iterative_model_file  # Model file name parameter        
+
+        file_path = os.path.dirname(os.path.realpath(__file__)) + "/../2_SysID/params/"
+        self.params = np.load(os.path.join(file_path, params_file) + ".npz")["params"]
+
         self.num_samples = num_samples  # Number of samples for evaluation
+        self.num_iterations = 5
 
         # Load the zero-shot model
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # self.device = torch.device('cpu')        
         self.load_model()
+        print('models loaded')
 
         self.calibration = np.load("../visualization/calibration_data.npz")
         self.mocap_data_goal = None
-
-    def image_display_thread(self):
-    # Create scalable OpenCV window
-        cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
-        while True:
-            with self.lock:
-                img = self.img.copy() if self.img is not None else None
-            if img is not None:
-                if len(self.mocap_data_camera_save) > 0:
-                    points = self.mocap_data_camera_save[-1]
-                    for i in range(points.shape[0]):
-                        x, y = points[i, :]
-                        # y = int(points[i, 1])
-
-                        # # Draw a plus sign with gold color
-                        color = (0, 215, 255)  # Gold color in BGR format
-
-                        # Draw horizontal line
-                        img = cv2.line(img, (x - 5, y), (x + 5, y), color, 2)
-                        # Draw vertical line
-                        img = cv2.line(img, (x, y - 5), (x, y + 5), color, 2)
-
-                if self.goal_camera_save is not None:
-                    x, y = self.goal_camera_save[0]
-
-                    # y = int(points[i, 1])
-
-                    # # Draw a plus sign with gold color
-                    color = (0, 255, 0)  # Gold color in BGR format
-
-                    # Draw horizontal line
-                    img = cv2.line(img, (x - 5, y), (x + 5, y), color, 2)
-                    # Draw vertical line
-                    img = cv2.line(img, (x, y - 5), (x, y + 5), color, 2)
-
-                cv2.imshow("Image", img)
-                cv2.waitKey(1)
-            time.sleep(0.2)
-
 
     def reset_data(self):
         super().reset_data()
@@ -98,165 +70,256 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
         self.goal_robot_save = None
         self.goal_camera_save = None
 
-    # def load_model(self): 
-    #     _, _, _, self.goals, _, _, _, _ = load_data_zeroshot("eval", noramlize=False)
+    def load_model(self):
+        # Load data for evaluation
+        _, _, _, self.goals, _, _, _, _ = load_data_zeroshot("eval", normalize=False)
 
-    #     filepath = f'../4_SupervizedLearning/zero_shot/checkpoints_{self.model_file}/final_model_checkpoint.pth'
-    #     checkpoint = torch.load(filepath)
-    #     self.model = SimpleMLP(
-    #         input_size=checkpoint['input_size'],
-    #         hidden_size=checkpoint['hidden_size'],
-    #         num_layers=checkpoint['num_layers'],
-    #         output_size=checkpoint['output_size'],
-    #         data_mean=checkpoint['data_mean'].to(self.device), 
-    #         data_std=checkpoint['data_std'].to(self.device), 
-    #         labels_mean=checkpoint['labels_mean'].to(self.device), 
-    #         labels_std=checkpoint['labels_std'].to(self.device)
-    #     )
-    #     self.model.load_state_dict(checkpoint['model_state_dict'])
-    #     self.model = self.model.to(self.device)
-
-    # def evaluate_zeroshot(self):
-    #     def sample_actions(num_samples=10000):
-    #         qf = np.array([-90, 100, -180], dtype=np.float32)
-    #         random_actions = np.tile(qf, (num_samples, 1))
-    #         random_actions[:, 0] += np.random.rand(num_samples) * 16 - 8
-    #         random_actions[:, 1] += np.random.rand(num_samples) * 16 - 8
-    #         random_actions[:, 2] += np.random.rand(num_samples) * 16 - 8
-    #         return random_actions
-
-    def load_model(self): 
-        # Load data using the function
-        _, _, _, self.goals, data_mean, data_std, labels_mean, labels_std = load_data_zeroshot("../3_ExpandDataSet/raw_data", noramlize=False)
-
-        # To load the model
-        filepath = '../4_SupervizedLearning/zero_shot/model_checkpoint_50.pth'
-        checkpoint = torch.load(filepath)
-        self.model_zeroshot = SimpleMLP(
-            input_size=checkpoint['input_size'],
-            hidden_size=checkpoint['hidden_size'],
-            num_layers=checkpoint['num_layers'],
-            output_size=checkpoint['output_size'],
-            data_mean=checkpoint['data_mean'].to(self.device), 
-            data_std=checkpoint['data_std'].to(self.device), 
-            labels_mean=checkpoint['labels_mean'].to(self.device), 
-            labels_std=checkpoint['labels_std'].to(self.device)
+        # Load Zero-Shot Model
+        zeroshot_filepath = f'../4_SupervizedLearning/zero_shot/checkpoints_{self.zeroshot_model_file}/final_model_checkpoint.pth'
+        zeroshot_checkpoint = torch.load(zeroshot_filepath)
+        self.zeroshot_model = SimpleMLP(
+            input_size=zeroshot_checkpoint['input_size'],
+            hidden_size=zeroshot_checkpoint['hidden_size'],
+            num_layers=zeroshot_checkpoint['num_layers'],
+            output_size=zeroshot_checkpoint['output_size'],
+            data_mean=zeroshot_checkpoint['data_mean'].to(self.device),
+            data_std=zeroshot_checkpoint['data_std'].to(self.device),
+            labels_mean=zeroshot_checkpoint['labels_mean'].to(self.device),
+            labels_std=zeroshot_checkpoint['labels_std'].to(self.device)
         )
-        self.model_zeroshot.load_state_dict(checkpoint['model_state_dict'])
-        self.model_zeroshot = self.model_zeroshot.to(self.device)
+        self.zeroshot_model.load_state_dict(zeroshot_checkpoint['model_state_dict'])
+        self.zeroshot_model = self.zeroshot_model.to(self.device)
 
-        # To load the model
-        filepath = '../4_SupervizedLearning/iterative/model_checkpoint_800.pth'
-        checkpoint = torch.load(filepath)
-        self.model_iterative = LSTMMLPModel(
-            input_size_lstm=checkpoint['input_size_lstm'], 
-            input_size_classic=checkpoint['input_size_classic'], 
-            hidden_size_lstm=checkpoint['hidden_size_lstm'], 
-            hidden_size_mlp=checkpoint['hidden_size_mlp'], 
-            num_layers_lstm=checkpoint['num_layers_lstm'], 
-            num_layers_mlp=checkpoint['num_layers_mlp'], 
-            output_size=checkpoint['output_size'],
-            delta_actions_mean=checkpoint['delta_actions_mean'].to(self.device), 
-            delta_actions_std=checkpoint['delta_actions_std'].to(self.device), 
-            delta_goals_mean=checkpoint['delta_goals_mean'].to(self.device), 
-            delta_goals_std=checkpoint['delta_goals_std'].to(self.device), 
-            traj_pos_mean=checkpoint['traj_pos_mean'].to(self.device), 
-            traj_pos_std=checkpoint['traj_pos_std'].to(self.device)
-        )
-        self.model_iterative.load_state_dict(checkpoint['model_state_dict'])
-        self.model_iterative = self.model_iterative.to(self.device)
-        def evaluate_model(goal):
-            self.model.eval()
+        # Load Iterative Model
+        iterative_filepath = f'../4_SupervizedLearning/iterative/checkpoints_{self.iterative_model_file}/final_model_checkpoint.pth'
+        iterative_checkpoint = torch.load(iterative_filepath)
+        self.iterative_model = LSTMMLPModel(
+            input_size_lstm=iterative_checkpoint['input_size_lstm'],
+            input_size_classic=iterative_checkpoint['input_size_classic'],
+            hidden_size_lstm=iterative_checkpoint['hidden_size_lstm'],
+            hidden_size_mlp=iterative_checkpoint['hidden_size_mlp'],
+            num_layers_lstm=iterative_checkpoint['num_layers_lstm'],
+            num_layers_mlp=iterative_checkpoint['num_layers_mlp'],
+            output_size=iterative_checkpoint['output_size'],
+            delta_actions_mean=iterative_checkpoint['delta_actions_mean'],
+            delta_actions_std=iterative_checkpoint['delta_actions_std'],
+            delta_goals_mean=iterative_checkpoint['delta_goals_mean'],
+            delta_goals_std=iterative_checkpoint['delta_goals_std'],
+            traj_pos_mean=iterative_checkpoint['traj_pos_mean'],
+            traj_pos_std=iterative_checkpoint['traj_pos_std'],
+            x_lstm_type=iterative_checkpoint['x_lstm_type']
+        ).to(self.device)
+
+        self.iterative_model.load_state_dict(iterative_checkpoint['model_state_dict'])
+        self.iterative_model = self.iterative_model.to(self.device)
+
+    def evaluate_iterative(self):
+        def sample_actions(num_samples=10000):
+            random_actions = np.array([-90, 100, -180], dtype=np.float32)
+            random_actions = np.tile(random_actions, (num_samples, 1))
+            random_actions[:, 0] += np.random.rand(num_samples) * 16 - 8
+            random_actions[:, 1] += np.random.rand(num_samples) * 16 - 8
+            random_actions[:, 2] += np.random.rand(num_samples) * 16 - 8
+            return random_actions
+
+        def evaluate_zeroshot_model(goal, num_samples=10000):
+            goal = torch.tensor(goal, dtype=torch.float32).to(self.device)
+            self.zeroshot_model.eval()
             with torch.no_grad():
-                random_actions = sample_actions()
+                random_actions = sample_actions(num_samples)
                 random_actions = torch.tensor(random_actions, dtype=torch.float32).to(self.device)
-                predicted_goals = self.model(random_actions, test=True)
+                predicted_goals = self.zeroshot_model(random_actions, test=True)
                 distances = torch.norm(predicted_goals - goal, dim=1)
                 min_distance_idx = torch.argmin(distances)
                 best_action = random_actions[min_distance_idx]
                 return best_action.cpu().numpy()
 
+
+
+        def evaluate_iterative_model(delta_goal, best_action, traj, num_samples=1_000_000, batch_size=5_000, iteration=1, plot=False):
+            self.iterative_model.eval()
+            with torch.no_grad():
+                # Prepare trajectory tensor
+                traj = np.expand_dims(traj, 0)  # Add a new dimension at the 0th axis
+                traj = torch.tensor(traj, dtype=torch.float32).to(self.device)
+
+                # Prepare delta goal tensor
+                delta_goal = torch.tensor(delta_goal, dtype=torch.float32).to(self.device)
+
+                # Initialize variables to track the best action
+                min_distance = float('inf')
+                best_delta_actions = None
+
+                # Set up the plot if plotting is enabled
+                if plot:
+                    plt.ion()  # Turn on interactive mode
+                    fig, ax = plt.subplots()
+                    ax.plot(delta_goal[0].cpu().numpy(), delta_goal[1].cpu().numpy(), 'r.', label='Target Goal')
+                    ax.legend()
+                    ax.set_title("Predicted Delta Goals vs Target Goal")
+                    ax.set_xlabel("X Coordinate")
+                    ax.set_ylabel("Y Coordinate")
+
+                # Process in minibatches
+                num_batches = int(np.ceil(num_samples / batch_size))
+                for i in range(num_batches):
+                    # Sample random delta actions for the current batch
+                    batch_random_delta_actions = sample_actions(batch_size) - best_action
+                    batch_random_delta_actions = batch_random_delta_actions / 4
+                    batch_random_delta_actions = torch.tensor(batch_random_delta_actions, dtype=torch.float32).to(self.device)
+
+                    # Repeat the trajectory for the current batch size
+                    batch_traj = traj.repeat(batch_size, 1, 1)  # Repeat along batch axis
+
+                    # Predict delta goals for the batch
+                    predicted_delta_goals = self.iterative_model(batch_traj, batch_random_delta_actions, test=True)
+
+                    # Plot predicted delta goals if plotting is enabled
+                    if plot and i == 0 :
+                        ax.plot(predicted_delta_goals[:, 0].cpu().numpy(), predicted_delta_goals[:, 1].cpu().numpy(), 'b.', alpha=0.5)
+                        ax.plot(delta_goal[0].cpu().numpy(), delta_goal[1].cpu().numpy(), 'r.', label='Target Goal')
+                        plt.pause(0.01)  # Update the plot without blocking
+
+                    # Compute distances
+                    batch_distances = torch.norm(predicted_delta_goals - delta_goal, dim=1)
+
+                    # Update the best action if a smaller distance is found
+                    batch_min_distance, batch_min_idx = torch.min(batch_distances, dim=0)
+                    if batch_min_distance < min_distance:
+                        min_distance = batch_min_distance
+                        best_delta_actions = batch_random_delta_actions[batch_min_idx]
+
+                # Display the final plot if plotting is enabled
+                if plot:
+                    plt.ioff()  # Turn off interactive mode
+                    plt.show(block=False)  # Display the plot and return immediately
+                    plt.pause(0.1)  # Ensure the plot window updates before the function returns
+
+                print("min distance", min_distance, "best change", best_delta_actions)
+                return best_delta_actions.cpu().numpy()
+
+
         self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
         self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
+        print('reset')
         self.reset_data()
+
+        print('start home')
 
         self.go_to_home()
 
+        print('done home')
+
         for count in range(self.num_samples):
 
-            print(count)
+            # if not count == 50: continue 
 
-            if count < 12: continue 
+            q0 = np.array([180.0, -53.25, 134.66, -171.28, -90.0, 0.0])
+            qf = np.array([180.0, -90.0, 100.0, -180.0, -90.0, 0.0])
+            goal = np.copy(self.goals[count, :])
 
-            best_action = evaluate_model(torch.tensor(self.goals[count, :], dtype=torch.float32).to(self.device))
+            for iteration in range(self.num_iterations):
 
-            q0 = [180, -53.25, 134.66, -171.28, -90, 0]
-            qf = [180, -90, 100, -180, -90, 0]
-            qf[1], qf[2], qf[3] = best_action
+                print(count, iteration)
 
-            for trial in range(10):
+                self.rtde_c.disconnect()
+                self.rtde_r.disconnect()
 
-                self.reset_data()
+                if iteration == 0:
 
-                self.goal_robot_save = self.goals[count, :]
-                self.goal_mocap_save = self.UR5e.convert_robotpoint_to_world(self.goals[count, :], self.mocap_data[:, 0])
-                self.goal_camera_save = self.project_mocap_to_camera(self.goal_mocap_save)
+                    qf[1:4] = evaluate_zeroshot_model(goal)
+                    # qf[1:4] = np.array([-90.0, 100.0, -180.0])
 
-                self.go_to_home()
-                self.reset_rope()
-                self.go_to_home()
-
-                self.video_count = count
-                self.video_saving = True
-
-                success = self.rope_swing(qf)
-                
-                self.go_to_home()
-
-                # Stop video saving at the end of the swing and release video writer
-                with self.lock:
-                    self.video_saving = False
-                    if self.video_writer is not None:
-                        self.video_writer.release()
-                        self.video_writer = None
-
-                # Check if the video writer had an error, and retry the current trial if necessary
-                if self.video_writer_error:
-                    print(f"Error occurred during video saving. Retrying trial {count}...")
-                    continue  # Skip to the next trial
-
-                if not success:
-                    print("UR5e error, swing again")
-                    continue 
-
-                if not np.any(np.array(self.mocap_data_save)[400:1100, :, :] == 0):
-                    break
                 else:
-                    print('could not find a mocap frame, swing again')
 
-            q0_save = np.array(np.copy(self.home_joint_pose))
-            qf_save = np.array(qf)
-            ur5e_tool_data_save = np.array(self.ur5e_tool_data_save)
-            ur5e_cmd_data_save = np.array(self.ur5e_cmd_data_save)
-            ur5e_jointstate_data_save = np.array(self.ur5e_jointstate_data_save)
-            ati_data_save = np.array(self.ati_data_save)
-            mocap_data_save = np.array(self.mocap_data_save)
-            mocap_data_camera_save = np.array(self.mocap_data_camera_save)
-            mocap_data_robot_save = np.array(self.mocap_data_robot_save)
-            ros_time_save = np.array(self.ros_time_save)
-            ros_time_camera_save = np.array(self.ros_time_camera_save)
+                    # best_deltaaction = evaulate_iterative_model(torch.tensor(self.goals[count, :], dtype=torch.float32).to(self.device))
+                    qf[1:4] += evaluate_iterative_model(delta_goal, np.copy(qf[1:4]), traj, iteration=iteration)
+                    
+                self.rtde_c.reconnect()
+                self.rtde_r.reconnect()
 
-            goal_robot_save = np.array(self.goal_robot_save)
-            goal_mocap_save = np.array(self.goal_mocap_save)
-            goal_camera_save = np.array(self.goal_camera_save)
+                for trial in range(10):
 
-            np.savez(os.path.join(self.save_path, str(count)), 
-                     q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, 
-                     ur5e_cmd_data_save=ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, 
-                     ati_data_save=ati_data_save, mocap_data_save=mocap_data_save, mocap_data_camera_save=mocap_data_camera_save, mocap_data_robot_save=mocap_data_robot_save,
-                     goal_robot_save=goal_robot_save, goal_mocap_save=goal_mocap_save, goal_camera_save=goal_camera_save, 
-                     ros_time_save=ros_time_save, ros_time_camera_save=ros_time_camera_save)
+                    # self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
+                    # self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
+
+                    self.reset_data()
+
+                    time.sleep(0.2)
+                    self.goal_robot_save = self.goals[count, :]
+                    self.goal_mocap_save = self.UR5e.convert_robotpoint_to_world(self.goals[count, :], self.mocap_data[:, 0])
+                    self.goal_camera_save = self.project_mocap_to_camera(self.goal_mocap_save)
+
+                    self.go_to_home()
+                    self.reset_rope()
+                    self.go_to_home()
+
+                    with self.video_lock:
+                        self.video_count = count
+                        self.video_saving = True
+
+                    success = self.rope_swing(qf)
+                    
+                    self.go_to_home()
+
+                    # Stop video saving at the end of the swing and release video writer
+                    with self.video_lock:
+                        self.video_saving = False
+                        if self.video_writer is not None:
+                            self.video_writer.release()
+                            self.video_writer = None
+
+                    # Check if the video writer had an error, and retry the current trial if necessary
+                    if self.video_writer_error:
+                        print(f"Error occurred during video saving. Retrying trial {count}...")
+                        continue  # Skip to the next trial
+
+                    if not success:
+                        print("UR5e error, swing again")
+                        continue 
+
+                    if not np.any(np.array(self.mocap_data_save)[400:1100, :, [0, 2]] == 0):
+                        break
+                    else:
+                        print('could not find a mocap frame, swing again')
+
+                q0_save = np.array(np.copy(self.home_joint_pose))
+                qf_save = np.array(qf)
+                ur5e_tool_data_save = np.array(self.ur5e_tool_data_save)
+                ur5e_cmd_data_save = np.array(self.ur5e_cmd_data_save)
+                ur5e_jointstate_data_save = np.array(self.ur5e_jointstate_data_save)
+                ati_data_save = np.array(self.ati_data_save)
+                mocap_data_save = np.array(self.mocap_data_save)
+                mocap_data_camera_save = np.array(self.mocap_data_camera_save)
+                mocap_data_robot_save = np.array(self.mocap_data_robot_save)
+                ros_time_save = np.array(self.ros_time_save)
+                ros_time_camera_save = np.array(self.ros_time_camera_save)
+
+                goal_robot_save = np.array(self.goal_robot_save)
+                goal_mocap_save = np.array(self.goal_mocap_save)
+                goal_camera_save = np.array(self.goal_camera_save)
+
+                np.savez(os.path.join(self.save_path, str(count) + "_" + str(iteration)), 
+                         q0_save=q0_save, qf_save=qf_save, ur5e_tool_data_save=ur5e_tool_data_save, 
+                         ur5e_cmd_data_save=ur5e_cmd_data_save, ur5e_jointstate_data_save=ur5e_jointstate_data_save, 
+                         ati_data_save=ati_data_save, mocap_data_save=mocap_data_save, mocap_data_camera_save=mocap_data_camera_save, mocap_data_robot_save=mocap_data_robot_save,
+                         goal_robot_save=goal_robot_save, goal_mocap_save=goal_mocap_save, goal_camera_save=goal_camera_save, 
+                         ros_time_save=ros_time_save, ros_time_camera_save=ros_time_camera_save)
+
+
+                # Extract actions, goals, and trajectories
+                # actions = filter_data["qf_save"][:, [1, 2, 3]]
+                # goals = filter_data["traj_rope_tip_save"][:, round(params[-1] + 500), :]
+                traj_pos = np.copy(mocap_data_robot_save[round(self.params[-1]) + 500:round(self.params[-1] + 1000), :])
+                traj_force = np.copy(ati_data_save[round(self.params[-2]) + 500:round(self.params[-2] + 1000), 2:3])
+                traj = np.append(traj_pos, traj_force, axis=1)
+
+                delta_goal = np.copy(goal - mocap_data_robot_save[round(self.params[-1] + 1000), :])
+                print("error", np.linalg.norm(delta_goal))
+                print("delta goal", delta_goal)
+
+                # delta_goal = goal
 
         print("done")
 
@@ -266,17 +329,20 @@ def main(args=None):
 
     rclpy.init(args=args)
 
-    save_path = "N2_pose"
-    model_file = "N2_pose"
-    num_samples = 50
+    save_path = "N2_pose_iterative"
+    zeroshot_model_file = "N2_pose"
+    iterative_model_file = "dgoal_daction_noise_N2_pose"
+    params_file = "N3"
+    num_samples = 100
 
-    ur5e = UR5e_EvaluateZeroShot(save_path=save_path, model_file=model_file, num_samples=num_samples)
+    ur5e = UR5e_EvaluateIterative(save_path=save_path, zeroshot_model_file=zeroshot_model_file, iterative_model_file=iterative_model_file, 
+                                  params_file=params_file, num_samples=num_samples)
 
     executor = MultiThreadedExecutor()
     executor.add_node(ur5e)
 
-    evaluate_zeroshot_thread = threading.Thread(target=ur5e.evaluate_zeroshot)
-    evaluate_zeroshot_thread.start()
+    evaluate_iterative_thread = threading.Thread(target=ur5e.evaluate_iterative)
+    evaluate_iterative_thread.start()
 
     # video_display_thread = threading.Thread(target=ur5e.image_display_thread)
     # video_display_thread.start()
@@ -291,7 +357,7 @@ def main(args=None):
     finally:
         ur5e.destroy_node()
         rclpy.shutdown()
-        evaluate_zeroshot_thread.join()
+        evaluate_iterative_thread.join()
         video_display_thread.join()
         video_saving_thread.join()
 

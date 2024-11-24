@@ -44,23 +44,23 @@ def plot_validation_losses(model_paths, model_names):
 
 # Example usage
 model_paths = [
-    '../4_SupervizedLearning/iterative/checkpoints_N2_all/final_model_checkpoint.pth',
-    '../4_SupervizedLearning/iterative/checkpoints_N2_pose/final_model_checkpoint.pth',
-    '../4_SupervizedLearning/iterative/checkpoints_nonoise_N2_all/final_model_checkpoint.pth',
-    '../4_SupervizedLearning/iterative/checkpoints_nonoise_N2_pose/final_model_checkpoint.pth',
+    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_all/final_model_checkpoint.pth',
+    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_pose/final_model_checkpoint.pth',
+    # '../4_SupervizedLearning/iterative/checkpoints_nonoise_N2_all/final_model_checkpoint.pth',
+    # '../4_SupervizedLearning/iterative/checkpoints_nonoise_N2_pose/final_model_checkpoint.pth',
 ]
 
 model_names = [
     'N2 All',
     'N2 Pose',
-    'N2 All (No Noise)',
-    'N2 Pose (No Noise)'
+    # 'N2 All (No Noise)',
+    # 'N2 Pose (No Noise)'
 ]
 
 # # Example usage
 # model_paths = [
-#     '../4_SupervizedLearning/zero_shot/checkpoints_N2_all/final_model_checkpoint.pth',
-#     '../4_SupervizedLearning/zero_shot/checkpoints_N2_pose/final_model_checkpoint.pth',
+#     '../../4_SupervizedLearning/zero_shot/checkpoints_N2_all/final_model_checkpoint.pth',
+#     '../../4_SupervizedLearning/zero_shot/checkpoints_N2_pose/final_model_checkpoint.pth',
 # ]
 
 # model_names = [

@@ -147,7 +147,7 @@ class UR5e_EvaluateZeroShot(UR5e_CollectData):
 
             print(count)
 
-            if count < 46: continue 
+            if count < 50: continue 
 
             best_action = evaluate_model(torch.tensor(self.goals[count, :], dtype=torch.float32).to(self.device))
 
@@ -175,7 +175,7 @@ class UR5e_EvaluateZeroShot(UR5e_CollectData):
                 self.go_to_home()
 
                 # Stop video saving at the end of the swing and release video writer
-                with self.lock:
+                with self.video_lock:
                     self.video_saving = False
                     if self.video_writer is not None:
                         self.video_writer.release()
@@ -226,9 +226,9 @@ def main(args=None):
 
     rclpy.init(args=args)
 
-    save_path = "N2_pose"
-    model_file = "N2_pose"
-    num_samples = 50
+    save_path = "N2_all"
+    model_file = "N2_all"
+    num_samples = 100
 
     ur5e = UR5e_EvaluateZeroShot(save_path=save_path, model_file=model_file, num_samples=num_samples)
 

@@ -35,7 +35,7 @@ momentum = 0.9
 checkpoint_freq = 50  # Frequency to save checkpoints
 
 # Create a folder for saving checkpoints and final models based on dataset name
-checkpoint_folder = f"checkpoints_nonoise_{train_dataset_name}"
+checkpoint_folder = f"checkpoints_dgoal_daction_noise_{train_dataset_name}"
 os.makedirs(checkpoint_folder, exist_ok=True)
 
 def plot_curves(train_losses, test_losses, valid_losses, folder):
@@ -92,7 +92,7 @@ train_loader = DataLoader(TensorDataset(train_data_time_series, train_data_class
 test_loader = DataLoader(TensorDataset(test_data_time_series, test_data_classic, test_labels), batch_size=batch_size, shuffle=False)
 valid_loader = DataLoader(TensorDataset(valid_data_time_series, valid_data_classic, valid_labels), batch_size=batch_size, shuffle=False)
 
-# Training and evaluation loop
+## Training and evaluation loop
 train_losses, test_losses, valid_losses = [], [], []
 for epoch in range(num_epochs):
     model.train()
@@ -149,13 +149,14 @@ for epoch in range(num_epochs):
             'delta_actions_mean': delta_actions_mean,
             'delta_actions_std': delta_actions_std,
             'delta_goals_mean': delta_goals_mean,
-            'delta_goals_std': delta_goals_std
+            'delta_goals_std': delta_goals_std,
+            'traj_pos_mean': traj_pos_mean,
+            'traj_pos_std': traj_pos_std,
+            'x_lstm_type': x_lstm_type
         }, checkpoint_path)
         print(f'Saved checkpoint: {checkpoint_path}')
 
 # Plot and save final curves
-plot_curves(train_losses, test_losses, valid_losses, checkpoint_folder)
-
 # Save final model
 final_model_path = os.path.join(checkpoint_folder, 'final_model_checkpoint.pth')
 torch.save({
@@ -176,7 +177,12 @@ torch.save({
     'delta_actions_mean': delta_actions_mean,
     'delta_actions_std': delta_actions_std,
     'delta_goals_mean': delta_goals_mean,
-    'delta_goals_std': delta_goals_std
+    'delta_goals_std': delta_goals_std,
+    'traj_pos_mean': traj_pos_mean,
+    'traj_pos_std': traj_pos_std,
+    'x_lstm_type': x_lstm_type
 }, final_model_path)
 
 print(f"Training completed. Final model saved to: {final_model_path}")
+
+plot_curves(train_losses, test_losses, valid_losses, checkpoint_folder)

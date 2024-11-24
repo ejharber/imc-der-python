@@ -20,6 +20,7 @@ import threading
 import sys
 sys.path.append("../UR5e")
 from CustomRobots import *
+from matplotlib import pyplot as plt
 
 class UR5e_CollectData(Node):
     def __init__(self, save_path, N=None):
@@ -33,7 +34,10 @@ class UR5e_CollectData(Node):
         self.home_cart_pose = None
 
         # Locks for thread-safe access
-        self.lock = threading.Lock()
+        self.ati_lock = threading.Lock()
+        self.mocap_lock = threading.Lock()
+        self.img_lock = threading.Lock()
+        self.video_lock = threading.Lock()
 
         # ati cb
         self.ati_subscription = self.create_subscription(WrenchStamped, '/FT10881', self.ati_callback, 10)
@@ -69,11 +73,11 @@ class UR5e_CollectData(Node):
         pass
 
     def ati_callback(self, msg):
-        with self.lock:
+        with self.ati_lock:
             self.ati_data = [msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z, msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z]
 
     def mocap_callback(self, msg):
-        with self.lock:
+        with self.mocap_lock:
             self.mocap_data = np.zeros((7, 3))
             for rigid_body in msg.rigidbodies:
                 i = None
@@ -96,7 +100,7 @@ class UR5e_CollectData(Node):
     def image_callback(self, msg):
         try:
             img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-            with self.lock:
+            with self.img_lock:
                 self.img = img
         except Exception as e:
             self.get_logger().error("Error converting image: %s" % str(e))
@@ -110,11 +114,11 @@ class UR5e_CollectData(Node):
     def image_display_thread(self):
         cv2.namedWindow("Image", cv2.WINDOW_NORMAL)
         while True:
-            with self.lock:
+            with self.img_lock:
                 img = self.img.copy() if self.img is not None else None
             if img is not None:
                 if len(self.mocap_data_camera_save) > 0:
-                    with self.lock:
+                    with self.mocap_lock:
                         points = self.mocap_data_camera_save[-1]
                     for i in range(points.shape[0]):
                         x, y = points[i, :]
@@ -128,34 +132,37 @@ class UR5e_CollectData(Node):
 
     def save_video_frames(self):
         while True:
-            with self.lock:
+            with self.img_lock:
                 img = self.img.copy() if self.img is not None else None
-                video_saving = self.video_saving
-                video_writer = self.video_writer
-            if video_saving and img is not None:
-                if video_writer is None:
-                    with self.lock:
-                        self.ros_time_camera_save = []
+
+            if self.video_saving and img is not None:
+                if self.video_writer is None:
+                    with self.video_lock:
                         video_file = os.path.join(self.save_path, f"{self.video_count}.mp4")
                         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                         self.video_writer = cv2.VideoWriter(video_file, fourcc, 20.0, 
                                                             (self.frame_width, self.frame_height))
-                        video_writer = self.video_writer
                         self.video_writer_error = False  # Successfully wrote a frame
+                    self.ros_time_camera_save = []
+
                 try:
                     if img.shape[1] != self.frame_width or img.shape[0] != self.frame_height:
-                        self.video_writer_error = True
+                        with self.video_lock:
+                            self.video_writer_error = True
+                            self.video_saving = False
 
                     if not self.video_writer_error:
-                        video_writer.write(img)
+                        with self.video_lock:
+                            self.video_writer.write(img)
                         ros_time = self.get_clock().now()
                         ros_time_float = ros_time.nanoseconds * 1e-9
-                        with self.lock:
-                            self.ros_time_camera_save.append(ros_time_float)
+                        self.ros_time_camera_save.append(ros_time_float)
 
                 except Exception as e:
                     self.get_logger().error(f"Error writing frame: {str(e)}")
-                    self.video_writer_error = True  # Set the error flag to True
+                    with self.video_lock:
+                        self.video_writer_error = True  # Set the error flag to True
+                        self.video_saving = False
                     # If an error occurs, break the loop (we'll retry the trial)
                     # break
 
@@ -170,12 +177,17 @@ class UR5e_CollectData(Node):
         time.sleep(5)
 
     def take_data(self):
-        self.ati_data_save.append(self.ati_data - self.ati_data_zero)
-        self.mocap_data_save.append(self.mocap_data)
-        self.mocap_data_camera_save.append(self.project_mocap_to_camera(self.mocap_data[:3, :].T))
+        with self.ati_lock:
+            self.ati_data_save.append(self.ati_data - self.ati_data_zero)
+        
+        with self.mocap_lock:
+            mocap_data = np.copy(self.mocap_data)
+
+        self.mocap_data_save.append(mocap_data)
+        self.mocap_data_camera_save.append(self.project_mocap_to_camera(mocap_data[:3, :].T))
 
         if not np.any(self.mocap_data == 0):
-            self.mocap_data_robot_save.append(self.UR5e.convert_workpoint_to_robot(self.mocap_data[:, 2], self.mocap_data[:, 0], two_dimention=True))
+            self.mocap_data_robot_save.append(self.UR5e.convert_workpoint_to_robot(mocap_data[:, 2], mocap_data[:, 0], two_dimention=True))
         else:
             self.mocap_data_robot_save.append([0, 0])
 
@@ -189,10 +201,14 @@ class UR5e_CollectData(Node):
         self.ros_time_save.append(ros_time_float)
 
     def reset_data(self):
+        # with self.ati_lock:
         self.ati_data_save = []
+
+        # with self.mocap_lock:
         self.mocap_data_save = []
         self.mocap_data_camera_save = []
         self.mocap_data_robot_save = []
+
         self.ur5e_cmd_data_save = []
         self.ur5e_tool_data_save = []
         self.ur5e_jointstate_data_save = []
@@ -201,10 +217,10 @@ class UR5e_CollectData(Node):
     def take_data_routine(self):
         print("take data")
 
+        count = 0
+
         self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
         self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
-
-        count = 0
 
         for dq1 in np.linspace(-8, 8, self.N):
             for dq2 in np.linspace(-8, 8, self.N):
@@ -215,9 +231,9 @@ class UR5e_CollectData(Node):
                     # if not (count == 16 or count == 21):
                     #     count += 1
                     # #     continue 
-                    if not count == 5:
-                        count += 1
-                        continue 
+                    # if not count == 5:
+                    #     count += 1
+                    #     continue 
 
                     # if count < 59:
                     #     count += 1
@@ -229,6 +245,7 @@ class UR5e_CollectData(Node):
                         dq3 = 0
 
                     for trail in range(10):
+
                         # Reset data for each trial
                         self.reset_data()
 
@@ -240,16 +257,16 @@ class UR5e_CollectData(Node):
                         self.reset_rope()
                         self.go_to_home()
 
-                        # Start video saving at the beginning of the swing
-                        self.video_count = count  # Track video sequence
-                        self.video_saving = True  # Start saving images to video
+                        with self.video_lock:
+                            self.video_count = count
+                            self.video_saving = True
 
                         success = self.rope_swing(qf)
 
                         self.go_to_home()
 
                         # Stop video saving at the end of the swing and release video writer
-                        with self.lock:
+                        with self.video_lock:
                             self.video_saving = False
                             if self.video_writer is not None:
                                 self.video_writer.release()
@@ -316,6 +333,7 @@ class UR5e_CollectData(Node):
             self.take_data()
             # print(q, self.ur5e_jointstate_data_save[-1])
             if (np.linalg.norm(np.array(q) - np.array(self.ur5e_jointstate_data_save[-1])) > 0.3):
+                print(np.linalg.norm(np.array(q) - np.array(self.ur5e_jointstate_data_save[-1])))
                 success = False
 
             self.rtde_c.waitPeriod(t_start)
@@ -328,6 +346,11 @@ class UR5e_CollectData(Node):
                 self.mocap_data_actual = np.copy(self.mocap_data_save[-1][:3, 2])
 
         self.rtde_c.servoStop()
+
+        # if not success:
+        # plt.plot(traj.T, 'r-')
+        # plt.plot(np.array(self.ur5e_jointstate_data_save), 'b.')
+        # plt.show()
 
         return success
 
@@ -354,7 +377,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Parameters: save path and N (number of swings)
-    save_path = "raw_data_N4_final"
+    save_path = "test"
     N = 4  # Number of swings
 
     ur5e = UR5e_CollectData(save_path=save_path, N=N)

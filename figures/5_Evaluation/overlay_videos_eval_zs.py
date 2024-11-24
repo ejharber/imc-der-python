@@ -277,7 +277,7 @@ def plot_all_goals_and_mocap(data_files, params_file_name):
     plt.show()
 
 def main():
-    directory = "N2_all"
+    directory = "N2_pose"
     input_dir = '../../5_Evaluation/' + directory
     output_dir = './' + directory
     os.makedirs(output_dir, exist_ok=True)
