@@ -37,7 +37,7 @@ class LSTMMLPModel(nn.Module):
         self.traj_pos_mean = traj_pos_mean if traj_pos_mean is None else torch.tensor(traj_pos_mean, dtype=torch.float32)
         self.traj_pos_std = traj_pos_std if traj_pos_std is None else torch.tensor(traj_pos_std, dtype=torch.float32)
 
-    def forward(self, x_lstm, x_classic, test=False):
+    def forward(self, x_lstm, x_classic, test=False, run_time=False):
 
         if test:
             x_lstm = x_lstm - self.traj_pos_mean
@@ -58,6 +58,9 @@ class LSTMMLPModel(nn.Module):
         
         out_lstm, _ = self.lstm(x_lstm, (h0, c0))
         out_lstm = out_lstm[:, -1, :]  # Take the output from the last time step
+
+        if run_time:
+            out_lstm = out_lstm.repeat(x_classic.shape[0], 1, 1)
                 
         # Concatenate LSTM output with classic input
         combined_input = torch.cat((out_lstm, x_classic), dim=1)

@@ -8,7 +8,7 @@ from multiprocessing import Pool
 
 def construct_data(offset=0):
     # Load simulation parameters
-    params = np.load("../2_SysID/params/N2_pose.npz")["params"]
+    params = np.load("../2_SysID/params/N2_all.npz")["params"]
     rope = Rope(params)
 
     # Data storage lists
@@ -30,9 +30,12 @@ def construct_data(offset=0):
         # Define initial and randomized target configurations
         q0 = [180, -53.25, 134.66, -171.28, -90, 0]
         qf = [180, -90, 100, -180, -90, 0]
-        qf[1] += np.random.rand() * 20 - 10
-        qf[2] += np.random.rand() * 20 - 10
-        qf[3] += np.random.rand() * 24 - 12
+        qf[1] += np.random.uniform(-8, 8)
+        qf[2] += np.random.uniform(-8, 8)
+        qf[3] += np.random.uniform(-8, 8)
+        # qf[1] += np.random.choice([-1, 1]) * np.random.uniform(8, 10)
+        # qf[2] += np.random.choice([-1, 1]) * np.random.uniform(8, 10)
+        # qf[3] += np.random.choice([-1, 1]) * np.random.uniform(8, 10)
 
         # Run simulation
         success, traj_pos_sim, traj_force_sim, traj_force_sim_base, traj_force_sim_rope, q_save, f_save = rope.run_sim(q0, qf)
@@ -52,7 +55,7 @@ def construct_data(offset=0):
         fs_save.append(f_save)
 
     # Save all data into a .npz file
-    np.savez(f"N2_pose_expanded_data/rope_motion_{offset}",
+    np.savez(f"N2_all/{offset}",
              q0_save=q0_save, qf_save=qf_save,
              traj_pos_save=traj_pos_save, traj_force_save=traj_force_save,
              traj_force_base_save=traj_force_base_save, traj_force_rope_save=traj_force_rope_save,

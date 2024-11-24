@@ -114,19 +114,22 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
         self.iterative_model = self.iterative_model.to(self.device)
 
     def evaluate_iterative(self):
-        def sample_actions(num_samples=10000):
-            random_actions = np.array([-90, 100, -180], dtype=np.float32)
-            random_actions = np.tile(random_actions, (num_samples, 1))
-            random_actions[:, 0] += np.random.rand(num_samples) * 16 - 8
-            random_actions[:, 1] += np.random.rand(num_samples) * 16 - 8
-            random_actions[:, 2] += np.random.rand(num_samples) * 16 - 8
-            return random_actions
+        def evaluate_zeroshot_model(goal, num_samples=1_000_000):
+            def sample_actions(num_samples, seed=None):
+                if seed is not None:
+                    np.random.seed(seed)
+                
+                random_actions = np.array([-90, 100, -180], dtype=np.float32)
+                random_actions = np.tile(random_actions, (num_samples, 1))
+                random_actions[:, 0] += np.random.uniform(-8, 8, num_samples)
+                random_actions[:, 1] += np.random.uniform(-8, 8, num_samples)
+                random_actions[:, 2] += np.random.uniform(-8, 8, num_samples)
+                return random_actions
 
-        def evaluate_zeroshot_model(goal, num_samples=10000):
             goal = torch.tensor(goal, dtype=torch.float32).to(self.device)
             self.zeroshot_model.eval()
             with torch.no_grad():
-                random_actions = sample_actions(num_samples)
+                random_actions = sample_actions(num_samples, seed=0)
                 random_actions = torch.tensor(random_actions, dtype=torch.float32).to(self.device)
                 predicted_goals = self.zeroshot_model(random_actions, test=True)
                 distances = torch.norm(predicted_goals - goal, dim=1)
@@ -134,9 +137,14 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                 best_action = random_actions[min_distance_idx]
                 return best_action.cpu().numpy()
 
+        def evaluate_iterative_model(delta_goal, best_action, traj, num_samples=1_000_000, batch_size=50_000, iteration=1, plot=False):
+            def sample_delta_actions(num_samples, seed=None):
+                if seed is not None:
+                    np.random.seed(seed)
+                
+                random_delta_actions = np.random.uniform(-1, 1, (num_samples, 3))
+                return random_delta_actions
 
-
-        def evaluate_iterative_model(delta_goal, best_action, traj, num_samples=1_000_000, batch_size=5_000, iteration=1, plot=False):
             self.iterative_model.eval()
             with torch.no_grad():
                 # Prepare trajectory tensor
@@ -164,15 +172,12 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                 num_batches = int(np.ceil(num_samples / batch_size))
                 for i in range(num_batches):
                     # Sample random delta actions for the current batch
-                    batch_random_delta_actions = sample_actions(batch_size) - best_action
-                    batch_random_delta_actions = batch_random_delta_actions / 4
+                    batch_random_delta_actions = sample_delta_actions(batch_size, seed=i)
+                    # batch_random_delta_actions = batch_random_delta_actions / 4
                     batch_random_delta_actions = torch.tensor(batch_random_delta_actions, dtype=torch.float32).to(self.device)
 
-                    # Repeat the trajectory for the current batch size
-                    batch_traj = traj.repeat(batch_size, 1, 1)  # Repeat along batch axis
-
                     # Predict delta goals for the batch
-                    predicted_delta_goals = self.iterative_model(batch_traj, batch_random_delta_actions, test=True)
+                    predicted_delta_goals = self.iterative_model(traj, batch_random_delta_actions, test=True, run_time=True)
 
                     # Plot predicted delta goals if plotting is enabled
                     if plot and i == 0 :
