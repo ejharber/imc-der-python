@@ -60,7 +60,7 @@ class LSTMMLPModel(nn.Module):
         out_lstm = out_lstm[:, -1, :]  # Take the output from the last time step
 
         if run_time:
-            out_lstm = out_lstm.repeat(x_classic.shape[0], 1, 1)
+            out_lstm = out_lstm.repeat(x_classic.shape[0], 1)
                 
         # Concatenate LSTM output with classic input
         combined_input = torch.cat((out_lstm, x_classic), dim=1)

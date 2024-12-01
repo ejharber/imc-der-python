@@ -38,7 +38,7 @@ class ImagePublisher(Node):
         super().__init__('image_publisher')
         self.publisher_ = self.create_publisher(Image, '/camera/raw_image', 1)
         self.bridge = CvBridge()
-        camera = 0
+        camera = 5
         set_logitech_camera_settings(camera)
         self.cap = cv2.VideoCapture(camera)
 
