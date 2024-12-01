@@ -70,9 +70,47 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
         self.goal_robot_save = None
         self.goal_camera_save = None
 
+    def save_video_frames(self):
+        while True:
+            with self.img_lock:
+                img = self.img.copy() if self.img is not None else None
+
+            if self.video_saving and img is not None:
+                if self.video_writer is None:
+                    with self.video_lock:
+                        video_file = os.path.join(self.save_path, f"{self.video_count}_{self.iteration}.mp4")
+                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                        self.video_writer = cv2.VideoWriter(video_file, fourcc, 20.0, 
+                                                            (self.frame_width, self.frame_height))
+                        self.video_writer_error = False  # Successfully wrote a frame
+                    self.ros_time_camera_save = []
+
+                try:
+                    if img.shape[1] != self.frame_width or img.shape[0] != self.frame_height:
+                        with self.video_lock:
+                            self.video_writer_error = True
+                            self.video_saving = False
+
+                    if not self.video_writer_error:
+                        with self.video_lock:
+                            self.video_writer.write(img)
+                        ros_time = self.get_clock().now()
+                        ros_time_float = ros_time.nanoseconds * 1e-9
+                        self.ros_time_camera_save.append(ros_time_float)
+
+                except Exception as e:
+                    self.get_logger().error(f"Error writing frame: {str(e)}")
+                    with self.video_lock:
+                        self.video_writer_error = True  # Set the error flag to True
+                        self.video_saving = False
+                    # If an error occurs, break the loop (we'll retry the trial)
+                    # break
+
+            time.sleep(1/20)
+
     def load_model(self):
         # Load data for evaluation
-        _, _, _, self.goals, _, _, _, _ = load_data_zeroshot("eval", normalize=False)
+        _, _, _, self.goals, _, _, _, _ = load_data_zeroshot("interp", normalize=False)
 
         # Load Zero-Shot Model
         zeroshot_filepath = f'../4_SupervizedLearning/zero_shot/checkpoints_{self.zeroshot_model_file}/final_model_checkpoint.pth'
@@ -114,7 +152,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
         self.iterative_model = self.iterative_model.to(self.device)
 
     def evaluate_iterative(self):
-        def evaluate_zeroshot_model(goal, num_samples=1_000_000):
+        def evaluate_zeroshot_model(goal, num_samples=1_000_000, batch_size=10_000):
             def sample_actions(num_samples, seed=None):
                 if seed is not None:
                     np.random.seed(seed)
@@ -128,14 +166,29 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
             goal = torch.tensor(goal, dtype=torch.float32).to(self.device)
             self.zeroshot_model.eval()
+
+            min_distance = float('inf')
+            best_action = None
+
             with torch.no_grad():
                 random_actions = sample_actions(num_samples, seed=0)
-                random_actions = torch.tensor(random_actions, dtype=torch.float32).to(self.device)
-                predicted_goals = self.zeroshot_model(random_actions, test=True)
-                distances = torch.norm(predicted_goals - goal, dim=1)
-                min_distance_idx = torch.argmin(distances)
-                best_action = random_actions[min_distance_idx]
-                return best_action.cpu().numpy()
+                
+                for i in range(0, num_samples, batch_size):
+                    batch_actions = random_actions[i:i + batch_size]
+                    batch_actions = torch.tensor(batch_actions, dtype=torch.float32).to(self.device)
+
+                    predicted_goals = self.zeroshot_model(batch_actions, test=True)
+                    distances = torch.norm(predicted_goals - goal, dim=1)
+                    
+                    batch_min_distance = torch.min(distances)
+                    if batch_min_distance < min_distance:
+                        min_distance = batch_min_distance
+                        min_distance_idx = torch.argmin(distances) + i  # Adjust for global index
+                        best_action = random_actions[min_distance_idx]
+
+            print("zero shot min dist", min_distance)
+
+            return best_action
 
         def evaluate_iterative_model(delta_goal, best_action, traj, num_samples=1_000_000, batch_size=50_000, iteration=1, plot=False):
             def sample_delta_actions(num_samples, seed=None):
@@ -200,12 +253,12 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                     plt.show(block=False)  # Display the plot and return immediately
                     plt.pause(0.1)  # Ensure the plot window updates before the function returns
 
-                print("min distance", min_distance, "best change", best_delta_actions)
+                print("iterative min distance", min_distance, "best change", best_delta_actions)
                 return best_delta_actions.cpu().numpy()
 
 
-        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
-        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
+        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60", rt_priority=99)
+        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60", rt_priority=99)
 
         print('reset')
         self.reset_data()
@@ -218,7 +271,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
         for count in range(self.num_samples):
 
-            # if not count == 50: continue 
+            if count < 73: continue 
 
             q0 = np.array([180.0, -53.25, 134.66, -171.28, -90.0, 0.0])
             qf = np.array([180.0, -90.0, 100.0, -180.0, -90.0, 0.0])
@@ -261,6 +314,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                     self.go_to_home()
 
                     with self.video_lock:
+                        self.iteration = iteration
                         self.video_count = count
                         self.video_saving = True
 
@@ -274,6 +328,11 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                         if self.video_writer is not None:
                             self.video_writer.release()
                             self.video_writer = None
+
+                    # print((np.array(self.ati_data_save) + np.array(self.ati_data_zero))[600, :])
+                    if np.any(np.isclose((np.array(self.ati_data_save) + np.array(self.ati_data_zero)), 0, atol=1e-8)):
+                        print('ati error')
+                        return
 
                     # Check if the video writer had an error, and retry the current trial if necessary
                     if self.video_writer_error:
