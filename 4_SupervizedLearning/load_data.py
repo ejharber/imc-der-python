@@ -77,75 +77,88 @@ def load_realworlddata_zeroshot(filter_data_file_name, params_file_name, seed=0)
 
 ####################################################################################################
 
-def load_data_iterative(filter_data_file_name, params_file_name, seed=0, normalize=True, subset=False):
+def load_data_iterative(filter_data_file_name, params_file_name, seed=0, normalize=True, subset=10):
     np.random.seed(seed)
 
-    delta_actions = np.empty((0, 3))
-    delta_goals = np.empty((0, 2))
-    traj = np.empty((0, 500, 3))  # Assuming traj has shape based on data contents
+    # Initialize containers
+    all_delta_actions = []
+    all_delta_goals = []
+    all_delta_traj = []
 
+    # Paths for data files
     folder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../3_ExpandDataSet/", filter_data_file_name)
+    params_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../2_SysID/params/", params_file_name + ".npz")
 
-    file_path = os.path.dirname(os.path.realpath(__file__)) + "/../2_SysID/params/"
-    params = np.load(os.path.join(file_path, params_file_name) + ".npz")["params"]
-    std_x = np.load(os.path.join(file_path, params_file_name) + ".npz")["std_x"]
-    std_y = np.load(os.path.join(file_path, params_file_name) + ".npz")["std_y"]
-    std_ati = np.load(os.path.join(file_path, params_file_name) + ".npz")["std_ati"]
+    # Load parameters and standard deviations
+    params = np.load(params_path)["params"]
+    std_x = np.load(params_path)["std_x"]
+    std_y = np.load(params_path)["std_y"]
+    std_ati = np.load(params_path)["std_ati"]
 
+    # Iterate through the data files
+    count = 0
     for file in os.listdir(folder_path):
         if not file.endswith(".npz"):
-            continue 
+            continue
 
         data = np.load(os.path.join(folder_path, file))
 
-        actions = data["qf_save"][:800, [1, 2, 3]]
-        goals = data["traj_pos_save"][:800, -1, :]
+        actions = data["qf_save"][:100, [1, 2, 3]]
+        goals = data["traj_pos_save"][:100, -1, :]
+        traj_pos = data["traj_pos_save"][:100, :, :]
+        traj_force = data["traj_force_save"][:100, :, :]
 
-        split = 400
+        # Combine position and force trajectories
+        traj_data = np.append(traj_pos, traj_force, axis=2)
 
-        # Compute deltas and append
-        delta_actions = np.append(delta_actions, actions[split:, :] - actions[:split, :] , axis=0)
-        # delta_goals = np.append(delta_goals, goals[split:, :], axis=0)
-        delta_goals = np.append(delta_goals, goals[split:, :] - goals[:split, :], axis=0)
-
-        # Combine position and force trajectories and add noise
-        traj_data = np.append(data["traj_pos_save"][:split, :, :], data["traj_force_save"][:split, :, :], axis=2)
-
+        # Add noise to trajectories
         traj_data[:, :, 0] += np.random.normal(0, std_x, traj_data[:, :, 0].shape)
         traj_data[:, :, 1] += np.random.normal(0, std_y, traj_data[:, :, 1].shape)
         traj_data[:, :, 2] += np.random.normal(0, std_ati, traj_data[:, :, 2].shape)
 
-        traj = np.append(traj, traj_data, axis=0)
+        # Compute pairwise differences for actions, goals, and trajectories
+        delta_actions = actions[np.newaxis, :, :] - actions[:, np.newaxis, :]
+        delta_goals = goals[np.newaxis, :, :] - goals[:, np.newaxis, :]
+        delta_traj = 0*traj_data[np.newaxis, :, :, :] + traj_data[:, np.newaxis, :, :]
 
-        if subset:
+        # Reshape and append
+        all_delta_actions.append(delta_actions.reshape(-1, delta_actions.shape[-1]))
+        all_delta_goals.append(delta_goals.reshape(-1, delta_goals.shape[-1]))
+        all_delta_traj.append(delta_traj.reshape(-1, delta_traj.shape[2], delta_traj.shape[3]))
+
+        count += 1
+        print(count)
+        if subset == count:
             break
 
-    print(traj_data.shape)
-    # Add random noise to traj_data
+    # Concatenate all collected data
+    all_delta_actions = np.concatenate(all_delta_actions, axis=0)
+    all_delta_goals = np.concatenate(all_delta_goals, axis=0)
+    all_delta_traj = np.concatenate(all_delta_traj, axis=0)
 
-    # Calculate mean and standard deviation for normalization
-    delta_actions_mean, delta_actions_std = np.mean(delta_actions, axis=0), np.std(delta_actions, axis=0)
-    delta_goals_mean, delta_goals_std = np.mean(delta_goals, axis=0), np.std(delta_goals, axis=0)
-    traj_mean, traj_std = np.mean(traj, axis=(0, 1)), np.std(traj, axis=(0, 1))
+    print(all_delta_actions.shape, all_delta_goals.shape, all_delta_traj.shape)
 
+    # Normalize data if required
     if normalize:
-        delta_actions = (delta_actions - delta_actions_mean) / delta_actions_std
-        delta_goals = (delta_goals - delta_goals_mean) / delta_goals_std
-        traj = (traj - traj_mean) / traj_std
+        delta_actions_mean, delta_actions_std = np.mean(all_delta_actions, axis=0), np.std(all_delta_actions, axis=0)
+        delta_goals_mean, delta_goals_std = np.mean(all_delta_goals, axis=0), np.std(all_delta_goals, axis=0)
+        traj_mean, traj_std = np.mean(all_delta_traj, axis=(0, 1)), np.std(all_delta_traj, axis=(0, 1))
+
+        all_delta_actions = (all_delta_actions - delta_actions_mean) / delta_actions_std
+        all_delta_goals = (all_delta_goals - delta_goals_mean) / delta_goals_std
+        all_delta_traj = (all_delta_traj - traj_mean) / traj_std
+    else:
+        delta_actions_mean = delta_actions_std = delta_goals_mean = delta_goals_std = traj_mean = traj_std = None
 
     # Randomize and split data into train and test sets
-    indices = np.arange(delta_actions.shape[0])
+    indices = np.arange(all_delta_actions.shape[0])
     np.random.shuffle(indices)
     split = int(len(indices) * 2 / 3)
     train_indices, test_indices = indices[:split], indices[split:]
 
-    train_data = {"time_series": traj[train_indices], "classic": delta_actions[train_indices]}
-    test_data = {"time_series": traj[test_indices], "classic": delta_actions[test_indices]}
-    
-    train_labels, test_labels = delta_goals[train_indices], delta_goals[test_indices]
-
-    print(delta_actions_mean.shape, delta_actions_std.shape, delta_goals_mean.shape, delta_goals_std.shape,
-          traj_mean.shape, traj_std.shape)
+    train_data = {"time_series": all_delta_traj[train_indices], "classic": all_delta_actions[train_indices]}
+    test_data = {"time_series": all_delta_traj[test_indices], "classic": all_delta_actions[test_indices]}
+    train_labels, test_labels = all_delta_goals[train_indices], all_delta_goals[test_indices]
 
     return (train_data, train_labels, test_data, test_labels,
             delta_actions_mean, delta_actions_std, delta_goals_mean, delta_goals_std,

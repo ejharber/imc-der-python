@@ -129,7 +129,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
         self.zeroshot_model = self.zeroshot_model.to(self.device)
 
         # Load Iterative Model
-        iterative_filepath = f'../4_SupervizedLearning/iterative/checkpoints_{self.iterative_model_file}/final_model_checkpoint.pth'
+        iterative_filepath = f'../4_SupervizedLearning/iterative/checkpoints_{self.iterative_model_file}/model_checkpoint_200.pth'
         iterative_checkpoint = torch.load(iterative_filepath)
         self.iterative_model = LSTMMLPModel(
             input_size_lstm=iterative_checkpoint['input_size_lstm'],
@@ -147,6 +147,8 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
             traj_pos_std=iterative_checkpoint['traj_pos_std'],
             x_lstm_type=iterative_checkpoint['x_lstm_type']
         ).to(self.device)
+
+        print(iterative_checkpoint['x_lstm_type'])
 
         self.iterative_model.load_state_dict(iterative_checkpoint['model_state_dict'])
         self.iterative_model = self.iterative_model.to(self.device)
@@ -257,8 +259,11 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                 return best_delta_actions.cpu().numpy()
 
 
-        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60", rt_priority=99)
-        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60", rt_priority=99)
+        # self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60", rt_priority=99)
+        # self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60", rt_priority=99)
+
+        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
+        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
         print('reset')
         self.reset_data()
@@ -271,7 +276,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
         for count in range(self.num_samples):
 
-            if count < 73: continue 
+            if count < 4: continue 
 
             q0 = np.array([180.0, -53.25, 134.66, -171.28, -90.0, 0.0])
             qf = np.array([180.0, -90.0, 100.0, -180.0, -90.0, 0.0])
@@ -298,9 +303,6 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                 self.rtde_r.reconnect()
 
                 for trial in range(10):
-
-                    # self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
-                    # self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
 
                     self.reset_data()
 
@@ -343,6 +345,11 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                         print("UR5e error, swing again")
                         continue 
 
+                    print(np.diff(np.array(self.ur5e_jointstate_data_save), axis=0))
+                    if np.any(abs(np.diff(np.array(self.ur5e_jointstate_data_save), axis=0)) > 0.01):
+                        print('discontinuous command error')
+                        continue 
+
                     if not np.any(np.array(self.mocap_data_save)[400:1100, :, [0, 2]] == 0):
                         break
                     else:
@@ -373,17 +380,16 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
 
                 # Extract actions, goals, and trajectories
-                # actions = filter_data["qf_save"][:, [1, 2, 3]]
-                # goals = filter_data["traj_rope_tip_save"][:, round(params[-1] + 500), :]
                 traj_pos = np.copy(mocap_data_robot_save[round(self.params[-1]) + 500:round(self.params[-1] + 1000), :])
                 traj_force = np.copy(ati_data_save[round(self.params[-2]) + 500:round(self.params[-2] + 1000), 2:3])
                 traj = np.append(traj_pos, traj_force, axis=1)
 
+                plt.plot(traj_force)
+                plt.show()
+
                 delta_goal = np.copy(goal - mocap_data_robot_save[round(self.params[-1] + 1000), :])
                 print("error", np.linalg.norm(delta_goal))
                 print("delta goal", delta_goal)
-
-                # delta_goal = goal
 
         print("done")
 
@@ -393,11 +399,11 @@ def main(args=None):
 
     rclpy.init(args=args)
 
-    save_path = "N2_pose_iterative"
-    zeroshot_model_file = "N2_pose"
-    iterative_model_file = "dgoal_daction_noise_N2_pose"
-    params_file = "N3"
-    num_samples = 100
+    save_path = "N2_all_iterative"
+    zeroshot_model_file = "N2_all"
+    iterative_model_file = "dgoal_daction_noise_N2_all_large_new"
+    params_file = "N2_all"
+    num_samples = 10
 
     ur5e = UR5e_EvaluateIterative(save_path=save_path, zeroshot_model_file=zeroshot_model_file, iterative_model_file=iterative_model_file, 
                                   params_file=params_file, num_samples=num_samples)

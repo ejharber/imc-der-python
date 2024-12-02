@@ -7,7 +7,7 @@ import numpy as np
 from scipy.optimize import differential_evolution
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-def compute_cost(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_rope_tip_save, traj_force_save, display=False, callback=False):
+def compute_cost(params, q0_save, qf_save, traj_rope_tip_save, traj_force_save, display=False, callback=False):
     cost_mocap_x = 0
     cost_mocap_y = 0
     cost_ati = 0
@@ -19,7 +19,6 @@ def compute_cost(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save,
         q0 = q0_save[i, :]
         qf = qf_save[i, :]
 
-        traj_rope_base = traj_rope_base_save[i, round(params[-1]):round(params[-1] + 500), :]  # Mocap
         traj_rope_tip = traj_rope_tip_save[i, round(params[-1]):round(params[-1] + 500), :]
         traj_force = traj_force_save[i, round(params[-2]):round(params[-2] + 500), :]
 
@@ -41,7 +40,7 @@ def compute_cost(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save,
     cost_mocap_y /= (np.max(traj_rope_tip_save[:, :, 1]) - np.min(traj_rope_tip_save[:, :, 1]))
     cost_ati /= (np.max(traj_force_save) - np.min(traj_force_save))
 
-    total_cost = cost_mocap_x + cost_mocap_y # + 2 * cost_ati
+    total_cost = cost_mocap_x + cost_mocap_y + 2 * cost_ati
 
     print(total_cost)
     print(params)
@@ -51,7 +50,7 @@ def compute_cost(params, q0_save, qf_save, traj_robot_save, traj_rope_base_save,
     else: return total_cost
 
 # Cost function with parallel evaluation
-def cost_fun(param_sets, q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_rope_tip_save, traj_force_save, display=False, callback=False):
+def cost_fun(param_sets, q0_save, qf_save, traj_rope_tip_save, traj_force_save, display=False, callback=False):
     """
     Vectorized cost function to handle multiple parameter sets in parallel.
     Each param set is evaluated in a separate process using ProcessPoolExecutor.
@@ -68,7 +67,7 @@ def cost_fun(param_sets, q0_save, qf_save, traj_robot_save, traj_rope_base_save,
     # Multithreading to compute the cost for each parameter set
     with ProcessPoolExecutor() as executor:
         # Submit tasks for each set of parameters, passing the index along
-        futures = {executor.submit(compute_cost, params, q0_save, qf_save, traj_robot_save, traj_rope_base_save, traj_rope_tip_save, traj_force_save, display, callback): idx for idx, params in enumerate(param_sets)}
+        futures = {executor.submit(compute_cost, params, q0_save, qf_save, traj_rope_tip_save, traj_force_save, display, callback): idx for idx, params in enumerate(param_sets)}
 
         # Gather the results as they complete
         for future in as_completed(futures):
@@ -102,7 +101,7 @@ class SaveCostHistory:
         self.ati_costs = []
 
     def __call__(self, params, convergence):
-        costs = cost_fun([params], q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save, traj_rope_tip_save, traj_force_save, callback=True)[0]
+        costs = cost_fun([params], q0_save, qf_save, traj_rope_tip_save, traj_force_save, callback=True)[0]
         print(costs.shape)
         total_cost, mocap_x_cost, mocap_y_cost, ati_cost = costs
         self.total_costs.append(total_cost)
@@ -110,7 +109,7 @@ class SaveCostHistory:
         self.mocap_y_costs.append(mocap_y_cost)
         self.ati_costs.append(ati_cost)
 
-def cacluate_std(params, q0_save, qf_save, traj_rope_base_save, traj_rope_tip_save, traj_force_save):
+def cacluate_std(params, q0_save, qf_save, traj_rope_tip_save, traj_force_save):
 
     error_mocap_x = []
     error_mocap_y = []
@@ -122,12 +121,11 @@ def cacluate_std(params, q0_save, qf_save, traj_rope_base_save, traj_rope_tip_sa
         q0 = q0_save[i, :]
         qf = qf_save[i, :]
 
-        traj_rope_base = traj_rope_base_save[i, round(params[-1]):round(params[-1] + 500), :]  # Mocap
         traj_rope_tip = traj_rope_tip_save[i, round(params[-1]):round(params[-1] + 500), :]
         traj_force = traj_force_save[i, round(params[-2]):round(params[-2] + 500), :]
 
         rope = Rope(params[:-2])
-        success, traj_pos_sim, traj_force_sim, traj_force_sim_base, traj_force_sim_rope, q_save, _ = rope.run_sim(q0, qf)
+        success, traj_pos_sim, traj_force_sim, _, traj_force_sim_rope, q_save, _ = rope.run_sim(q0, qf)
 
         # Calculate costs for this trial
         error_mocap_x.append(traj_rope_tip[:, 0] - traj_pos_sim[:, 0])
@@ -150,12 +148,10 @@ def cacluate_std(params, q0_save, qf_save, traj_rope_base_save, traj_rope_tip_sa
 
 if __name__ == "__main__":
     folder_name = "filtered_data"
-    file = "N2_2.npz"
+    file = "N2.npz"
     file_name = folder_name + "/" + file
     data = np.load(file_name)
 
-    traj_robot_tool_save = data["traj_robot_tool_save"]
-    traj_rope_base_save = data["traj_rope_base_save"]
     traj_rope_tip_save = data["traj_rope_tip_save"]
     traj_force_save = data["traj_force_save"]
     q0_save = data["q0_save"]
@@ -166,7 +162,7 @@ if __name__ == "__main__":
               (1e1, 1e5), (1e1, 1e5),  # Ks
               (1e-4, .1), (1e-5, 1e2), (1e-5, 1e2),  # damping
               (0.028, 0.1), (.0103 - 0.01, .0103 + 0.01), (.06880 - 0.01, .06880 + 0.01),  # mass
-              (20, 100), (20, 100)]  # time sync
+              (500, 600), (500, 600)]  # time sync
 
     log_bounds = [(np.log10(lower), np.log10(upper)) for lower, upper in bounds if lower > 0 and upper > 0]
 
@@ -176,7 +172,7 @@ if __name__ == "__main__":
     # Run differential evolution optimization with `vectorize=True`
     res = differential_evolution(
         cost_fun, 
-        args=[q0_save, qf_save, traj_robot_tool_save, traj_rope_base_save, traj_rope_tip_save, traj_force_save],  
+        args=[q0_save, qf_save, traj_rope_tip_save, traj_force_save],  
         bounds=log_bounds,
         maxiter=500,
         # polish=False,
@@ -193,9 +189,9 @@ if __name__ == "__main__":
     params = np.power(10, params)
 
     # Calculate standard deviation
-    error_mocap_x, error_mocap_y, error_ati, std_x, std_y, std_ati = cacluate_std(params, q0_save, qf_save, traj_rope_base_save, traj_rope_tip_save, traj_force_save)
+    error_mocap_x, error_mocap_y, error_ati, std_x, std_y, std_ati = cacluate_std(params, q0_save, qf_save, traj_rope_tip_save, traj_force_save)
 
-    np.savez("params/N2_2_pose", params=params, costs=save_cost_history.total_costs, mocap_x_costs=save_cost_history.mocap_x_costs,
+    np.savez("params/N2_all", params=params, costs=save_cost_history.total_costs, mocap_x_costs=save_cost_history.mocap_x_costs,
              mocap_y_costs=save_cost_history.mocap_y_costs, ati_costs=save_cost_history.ati_costs, 
              error_mocap_x=error_mocap_x, error_mocap_y=error_mocap_y, error_ati=error_ati, 
              std_x=std_x, std_y=std_y, std_ati=std_ati)

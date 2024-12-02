@@ -42,6 +42,13 @@ def plot_goals_and_mocap(data_files, params_file_name, j_value):
         main_goal_idx = 1000 + round(params[-1])
         main_goal_position = data["mocap_data_robot_save"][main_goal_idx, :]  # (x, y)
 
+        # joints  = data["ur5e_jointstate_data_save"]
+        # plt.plot(joints)
+        # plt.show()
+
+        # plt.plot(np.diff(joints, axis=0))
+        # plt.show()
+
         # Secondary goal (green `+`) position
         secondary_goal_position = data["goal_robot_save"]  # (x, y)
 
@@ -88,31 +95,42 @@ def plot_goals_and_mocap(data_files, params_file_name, j_value):
     plt.grid(True)
 
     # Return the average MSE for this j value
-    return np.mean(mse_values)
+    return np.mean(mse_values), np.std(mse_values)
 
-def plot_average_mse(average_mse_values, j_values):
+def plot_average_mse(mse_values, std_values, j_values):
     """
-    Plot the average MSE vs. the j values.
+    Plot the average MSE vs. the j values, with shaded one standard deviation.
 
-    :param average_mse_values: List of average MSE values for each j.
+    :param mse_values: List of average MSE values for each j.
+    :param std_values: List of standard deviation values for each j.
     :param j_values: List of corresponding j values.
     """
     plt.figure(figsize=(8, 6))
-    plt.plot(j_values, average_mse_values, marker='o', color='blue', label="Average MSE")
+    
+    # Plot the average MSE
+    plt.plot(j_values, mse_values, marker='o', color='blue', label="Average MSE")
+    
+    # Shade the one standard deviation range
+    lower_bound = [mse - std for mse, std in zip(mse_values, std_values)]
+    upper_bound = [mse + std for mse, std in zip(mse_values, std_values)]
+    plt.fill_between(j_values, lower_bound, upper_bound, color='blue', alpha=0.2, label="1 Std. Dev.")
+    
     plt.xlabel("j Value")
-    plt.ylabel("Average MSE")
+    plt.ylabel("Average MSE (m)")
     plt.title("Average MSE Between Main and Secondary Goal vs j")
     plt.grid(True)
     plt.legend()
+    plt.show()
 
 def main():
-    input_dir = '../../5_Evaluation/N2_pose_iterative/'  # Specify the directory to search
+    input_dir = '../../5_Evaluation/N2_all_iterative/'  # Specify the directory to search
     desired_j_values = [0, 1, 2, 3, 4]  # Specify the desired `j` values
 
     # Find the files matching the desired `j` values
     data_files_by_j = filter_files_by_j(input_dir, desired_j_values)
 
     average_mse_values = []
+    average_std_values = []
 
     # Calculate the average MSE for each j value and plot the goals
     for j_value in desired_j_values:
@@ -120,13 +138,15 @@ def main():
         if files:
             print(f"Found {len(files)} files for j = {j_value}.")
             # Plot the goals for each j value
-            avg_mse = plot_goals_and_mocap(files, params_file_name="N3", j_value=j_value)
+            avg_mse, avg_std = plot_goals_and_mocap(files, params_file_name="N3", j_value=j_value)
             average_mse_values.append(avg_mse)
+            average_std_values.append(avg_std)
+
         else:
             print(f"No files found for j = {j_value} in {input_dir}.")
 
     # Plot the average MSE vs j values
-    plot_average_mse(average_mse_values, desired_j_values)
+    plot_average_mse(average_mse_values, average_std_values, desired_j_values)
 
     # Show all plots
     plt.show()

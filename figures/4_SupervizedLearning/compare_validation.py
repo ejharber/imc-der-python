@@ -106,8 +106,8 @@ plot_losses(
 
 # Example usage for iterative data
 model_paths = [
-    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_pose/final_model_checkpoint.pth',
-    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_all/final_model_checkpoint.pth',
+    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_pose_large_new/model_checkpoint_200.pth',
+    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_all_large_new/model_checkpoint_200.pth',
 ]
 
 model_names = [

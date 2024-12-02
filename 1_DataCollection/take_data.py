@@ -66,6 +66,7 @@ class UR5e_CollectData(Node):
 
         self.reset_data()
 
+        self.take_data_iter = 0
         timer_period = 0.002
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
@@ -74,7 +75,7 @@ class UR5e_CollectData(Node):
 
     def ati_callback(self, msg):
         with self.ati_lock:
-            self.ati_data = [msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z, msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z]
+            self.ati_data = np.array([msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z, msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z])
 
     def mocap_callback(self, msg):
         with self.mocap_lock:
@@ -178,49 +179,50 @@ class UR5e_CollectData(Node):
 
     def take_data(self):
         with self.ati_lock:
-            self.ati_data_save.append(self.ati_data - self.ati_data_zero)
+            self.ati_data_save[self.take_data_iter, :] = self.ati_data - self.ati_data_zero
         
         with self.mocap_lock:
             mocap_data = np.copy(self.mocap_data)
 
-        self.mocap_data_save.append(mocap_data)
-        self.mocap_data_camera_save.append(self.project_mocap_to_camera(mocap_data[:3, :].T))
+        self.mocap_data_save[self.take_data_iter, :, :] = mocap_data
+        self.mocap_data_camera_save[self.take_data_iter, :, :] = self.project_mocap_to_camera(mocap_data[:3, :].T)
 
-        if not np.any(self.mocap_data == 0):
-            self.mocap_data_robot_save.append(self.UR5e.convert_workpoint_to_robot(mocap_data[:, 2], mocap_data[:, 0], two_dimention=True))
-        else:
-            self.mocap_data_robot_save.append([0, 0])
+        if not np.any(self.mocap_data[:, [0, 2]] == 0):
+            self.mocap_data_robot_save[self.take_data_iter, :] = self.UR5e.convert_workpoint_to_robot(mocap_data[:, 2], mocap_data[:, 0], two_dimention=True)
 
-        self.ur5e_cmd_data_save.append(self.rtde_r.getTargetQ())
-        self.ur5e_tool_data_save.append(self.rtde_r.getActualTCPPose())
-        self.ur5e_jointstate_data_save.append(self.rtde_r.getActualQ())
+        self.ur5e_cmd_data_save[self.take_data_iter, :] = self.rtde_r.getTargetQ()
+        # self.ur5e_tool_data_save[self.take_data_iter, :] = self.rtde_r.getActualTCPPose()
+        self.ur5e_jointstate_data_save[self.take_data_iter, :] = self.rtde_r.getActualQ()
 
         # Get the current ROS 2 time and store as a float
         ros_time = self.get_clock().now()
         ros_time_float = ros_time.nanoseconds * 1e-9  # Convert nanoseconds to seconds
-        self.ros_time_save.append(ros_time_float)
+        self.ros_time_save[self.take_data_iter, 0] = ros_time_float
+
+        self.take_data_iter += 1
 
     def reset_data(self):
+        self.take_data_iter = 0
         # with self.ati_lock:
-        self.ati_data_save = []
+        self.ati_data_save = np.zeros((1500, 6))
 
         # with self.mocap_lock:
-        self.mocap_data_save = []
-        self.mocap_data_camera_save = []
-        self.mocap_data_robot_save = []
+        self.mocap_data_save = np.zeros((1500, 7, 3))
+        self.mocap_data_camera_save = np.zeros((1500, 3, 2))
+        self.mocap_data_robot_save = np.zeros((1500, 2))
 
-        self.ur5e_cmd_data_save = []
-        self.ur5e_tool_data_save = []
-        self.ur5e_jointstate_data_save = []
-        self.ros_time_save = []
+        self.ur5e_cmd_data_save = np.zeros((1500, 6))
+        self.ur5e_tool_data_save = np.zeros((1500, 6))
+        self.ur5e_jointstate_data_save = np.zeros((1500, 6))
+        self.ros_time_save = np.zeros((1500, 1))
 
     def take_data_routine(self):
         print("take data")
 
         count = 0
 
-        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
-        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
+        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60", rt_priority=99)
+        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60", rt_priority=99)
 
         for dq1 in np.linspace(-8, 8, self.N):
             for dq2 in np.linspace(-8, 8, self.N):
@@ -235,7 +237,7 @@ class UR5e_CollectData(Node):
                     #     count += 1
                     #     continue 
 
-                    # if count < 59:
+                    # if count < 21:
                     #     count += 1
                     #     continue 
 
@@ -272,6 +274,13 @@ class UR5e_CollectData(Node):
                                 self.video_writer.release()
                                 self.video_writer = None
 
+                        print(np.array(self.ati_data_save).shape)
+
+                        # print((np.array(self.ati_data_save) + np.array(self.ati_data_zero))[600, :])
+                        if np.any(np.isclose((np.array(self.ati_data_save) + np.array(self.ati_data_zero)), 0, atol=1e-8)):
+                            print('ati error')
+                            return
+
                         # Check if the video writer had an error, and retry the current trial if necessary
                         if self.video_writer_error:
                             print(f"Error occurred during video saving. Retrying trial {count}...")
@@ -279,9 +288,13 @@ class UR5e_CollectData(Node):
 
                         if not success:
                             print("UR5e error, swing again")
-                            continue
+                            continue 
 
-                        if not np.any(np.array(self.mocap_data_save)[400:1100, :, :] == 0):  # Check for tip visibility
+                        if np.any(abs(np.diff(np.array(self.ur5e_jointstate_data_save), axis=0)) > 0.015):
+                            print('discontinuous command error')
+                            continue 
+
+                        if not np.any(np.array(self.mocap_data_save)[400:1100, :, [0, 2]] == 0):
                             break
                         else:
                             print('could not find a mocap frame, swing again')
@@ -322,35 +335,40 @@ class UR5e_CollectData(Node):
         gain = 1000
         success = True
 
-        for i in range(500):
+        # Get the current ROS 2 time and store as a float
+        ros_time = self.get_clock().now()
+        ros_time_start = ros_time.nanoseconds * 1e-9  # Convert nanoseconds to seconds
+
+        for _ in range(500):
             self.take_data()
             time.sleep(dt)
 
         for i in range(traj.shape[1]):
             t_start = self.rtde_c.initPeriod()
-            q = traj[:, i]
-            self.rtde_c.servoJ(q, velocity, acceleration, dt, lookahead_time, gain)
+            self.rtde_c.servoJ(traj[:, i], velocity, acceleration, dt, lookahead_time, gain)
+
             self.take_data()
-            # print(q, self.ur5e_jointstate_data_save[-1])
-            if (np.linalg.norm(np.array(q) - np.array(self.ur5e_jointstate_data_save[-1])) > 0.3):
-                print(np.linalg.norm(np.array(q) - np.array(self.ur5e_jointstate_data_save[-1])))
+
+            if (np.linalg.norm(traj[:, i] - self.ur5e_jointstate_data_save[self.take_data_iter-1, :]) > 0.3):
+                print(np.linalg.norm(traj[:, i] - self.ur5e_jointstate_data_save[self.take_data_iter-1, :]))
                 success = False
 
             self.rtde_c.waitPeriod(t_start)
 
-        for i in range(500):
+        for _ in range(500):
             self.take_data()
             time.sleep(dt)
 
-            if self.offset is not None and i == self.offset:
-                self.mocap_data_actual = np.copy(self.mocap_data_save[-1][:3, 2])
+        # Get the current ROS 2 time and store as a float
+        ros_time = self.get_clock().now()
+        ros_time_end = ros_time.nanoseconds * 1e-9  # Convert nanoseconds to seconds
+        
+        print(ros_time_end - ros_time_start)
+
+            # if self.offset is not None and i == self.offset:
+            #     self.mocap_data_actual = np.copy(self.mocap_data_save[-1][:3, 2])
 
         self.rtde_c.servoStop()
-
-        # if not success:
-        # plt.plot(traj.T, 'r-')
-        # plt.plot(np.array(self.ur5e_jointstate_data_save), 'b.')
-        # plt.show()
 
         return success
 
@@ -377,8 +395,8 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Parameters: save path and N (number of swings)
-    save_path = "test"
-    N = 4  # Number of swings
+    save_path = "N4"
+    N = 4 # Number of swings
 
     ur5e = UR5e_CollectData(save_path=save_path, N=N)
 
@@ -390,9 +408,9 @@ def main(args=None):
     data_collection_thread = threading.Thread(target=ur5e.take_data_routine)
     data_collection_thread.start()
 
-    # # Start the repeat_data_routine in a separate thread
-    video_display_thread = threading.Thread(target=ur5e.image_display_thread)
-    video_display_thread.start()
+    # # # Start the repeat_data_routine in a separate thread
+    # video_display_thread = threading.Thread(target=ur5e.image_display_thread)
+    # video_display_thread.start()
 
     # Start the video_saving_thread upon initialization
     video_saving_thread = threading.Thread(target=ur5e.save_video_frames)

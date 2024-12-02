@@ -6,9 +6,9 @@ import numpy as np
 import multiprocessing as mp
 from multiprocessing import Pool
 
-def construct_data(offset=0):
+def construct_data(offset=0, dataset_name="N2_all", data_set_size=1000):
     # Load simulation parameters
-    params = np.load("../2_SysID/params/N2_all.npz")["params"]
+    params = np.load(f"../2_SysID/params/{dataset_name}.npz")["params"]
     rope = Rope(params)
 
     # Data storage lists
@@ -23,16 +23,19 @@ def construct_data(offset=0):
     fs_save = []
 
     # Run simulations
-    for i in range(1_000):
-        print(f"Offset: {offset}, Iteration: {i}")
+    for i in range(data_set_size):
+        print(f"Dataset: {dataset_name}, Offset: {offset}, Iteration: {i}/{data_set_size}")
         np.random.seed(i + offset)
 
         # Define initial and randomized target configurations
         q0 = [180, -53.25, 134.66, -171.28, -90, 0]
         qf = [180, -90, 100, -180, -90, 0]
-        qf[1] += np.random.uniform(-8, 8)
-        qf[2] += np.random.uniform(-8, 8)
-        qf[3] += np.random.uniform(-8, 8)
+        qf[1] += np.random.uniform(-12, 12)
+        qf[2] += np.random.uniform(-12, 12)
+        qf[3] += np.random.uniform(-12, 12)
+        # qf[1] += np.random.uniform(-8, 8)
+        # qf[2] += np.random.uniform(-8, 8)
+        # qf[3] += np.random.uniform(-8, 8)
         # qf[1] += np.random.choice([-1, 1]) * np.random.uniform(8, 10)
         # qf[2] += np.random.choice([-1, 1]) * np.random.uniform(8, 10)
         # qf[3] += np.random.choice([-1, 1]) * np.random.uniform(8, 10)
@@ -55,13 +58,20 @@ def construct_data(offset=0):
         fs_save.append(f_save)
 
     # Save all data into a .npz file
-    np.savez(f"N2_all/{offset}",
+    np.savez(f"{dataset_name}/{offset}",
              q0_save=q0_save, qf_save=qf_save,
              traj_pos_save=traj_pos_save, traj_force_save=traj_force_save,
              traj_force_base_save=traj_force_base_save, traj_force_rope_save=traj_force_rope_save,
              qs_save=qs_save, fs_save=fs_save, seeds=seeds)
 
 if __name__ == "__main__":
+
+    dataset_name = "N2_all"
+    data_set_size = 100
+
+    # Ensure directory exists
+    os.makedirs(dataset_name, exist_ok=True)
+
     pool = Pool(processes=10)
-    args = [1_000 * i for i in range(100)]
-    pool.map(construct_data, args)
+    args = [data_set_size * i for i in range(100)]
+    pool.starmap(construct_data, [(arg, dataset_name, data_set_size) for arg in args])
