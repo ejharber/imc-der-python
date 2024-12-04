@@ -17,22 +17,21 @@ from CustomRobots import *
 import numpy as np 
 from scipy.optimize import differential_evolution
 
-data = np.load("params/params_original.npz")
-print(data["x"])
-params = data["x"]
-params = np.power(10, params)
+data = np.load("params/N2_2_all.npz")
+print(data["params"])
+params = data["params"]
 
 rope = Rope(params)
 
 folder_name = "filtered_data"
-file = "2.npz"
+file = "N1.npz"
 file_name = folder_name + "/" + file
 
 data = np.load(file_name)
 
 q0_save = data["q0_save"]
 qf_save = data["qf_save"]
-traj_pos_save = data["traj_pos_save"]
+traj_pos_save = data["traj_rope_tip_save"]
 traj_force_save = data["traj_force_save"]
 
 norm_mocap = 0
@@ -45,10 +44,12 @@ for i in range(q0_save.shape[0]):
 
     q0 = q0_save[i, :]
     qf = qf_save[i, :]
-    traj_pos = traj_pos_save[i, :, :]
-    traj_force = traj_force_save[i, :, :]
+    traj_pos = traj_pos_save[i, round(500+params[-1]):round(params[-1])+1000, :]
+    traj_force = traj_force_save[i, round(500+params[-2]):round(params[-2])+1000, :]
+    # traj_pos = traj_pos_save[i, :, :]
+    # traj_force = traj_force_save[i, :, :]
 
-    success, traj_pos_sim, traj_force_sim, q_save, f_save = rope.run_sim(q0, qf)
+    success, traj_pos_sim, traj_force_sim, traj_force_sim_base, traj_force_sim_rope, q_save, _ = rope.run_sim(q0, qf)
 
     # render pose
     # rope.render(q_save, traj_pos_mocap, traj_pos_sim)
@@ -66,7 +67,7 @@ for i in range(q0_save.shape[0]):
 
     plt.show()
 
-    exit()
+    # exit()
 
 print(norm_ati, norm_mocap)
 

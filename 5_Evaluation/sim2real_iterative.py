@@ -197,7 +197,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                 if seed is not None:
                     np.random.seed(seed)
                 
-                random_delta_actions = np.random.uniform(-1, 1, (num_samples, 3))
+                random_delta_actions = np.random.uniform(-2, 2, (num_samples, 3))
                 return random_delta_actions
 
             self.iterative_model.eval()
@@ -276,7 +276,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
         for count in range(self.num_samples):
 
-            if count < 4: continue 
+            if count < 8: continue 
 
             q0 = np.array([180.0, -53.25, 134.66, -171.28, -90.0, 0.0])
             qf = np.array([180.0, -90.0, 100.0, -180.0, -90.0, 0.0])
@@ -345,7 +345,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                         print("UR5e error, swing again")
                         continue 
 
-                    print(np.diff(np.array(self.ur5e_jointstate_data_save), axis=0))
+                    # print(np.diff(np.array(self.ur5e_jointstate_data_save), axis=0))
                     if np.any(abs(np.diff(np.array(self.ur5e_jointstate_data_save), axis=0)) > 0.01):
                         print('discontinuous command error')
                         continue 
@@ -384,8 +384,8 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                 traj_force = np.copy(ati_data_save[round(self.params[-2]) + 500:round(self.params[-2] + 1000), 2:3])
                 traj = np.append(traj_pos, traj_force, axis=1)
 
-                plt.plot(traj_force)
-                plt.show()
+                # plt.plot(traj_force)
+                # plt.show()
 
                 delta_goal = np.copy(goal - mocap_data_robot_save[round(self.params[-1] + 1000), :])
                 print("error", np.linalg.norm(delta_goal))
@@ -399,11 +399,11 @@ def main(args=None):
 
     rclpy.init(args=args)
 
-    save_path = "N2_all_iterative"
-    zeroshot_model_file = "N2_all"
-    iterative_model_file = "dgoal_daction_noise_N2_all_large_new"
-    params_file = "N2_all"
-    num_samples = 10
+    save_path = "N2_pose_iterative"
+    zeroshot_model_file = "N2_pose"
+    iterative_model_file = "dgoal_daction_noise_N2_pose_large_new"
+    params_file = "N2_2_all"
+    num_samples = 20
 
     ur5e = UR5e_EvaluateIterative(save_path=save_path, zeroshot_model_file=zeroshot_model_file, iterative_model_file=iterative_model_file, 
                                   params_file=params_file, num_samples=num_samples)

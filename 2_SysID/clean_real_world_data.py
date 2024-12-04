@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 def clean_raw_data():
 
     file_path = "../1_DataCollection/"
-    folder_name = "N4"
+    folder_name = "N1"
 
     traj_rope_tip_save = []
     traj_force_save = []
@@ -28,8 +28,18 @@ def clean_raw_data():
         traj_rope_tip = data["mocap_data_robot_save"]
         traj_force = data["ati_data_save"][:, 2:3]
 
-        # plt.plot(traj_force)
-        # plt.show()
+        plt.figure('force')
+        plt.plot(data["ati_data_save"][:, 0], label='x')
+        plt.plot(data["ati_data_save"][:, 1], label='y')
+        plt.plot(data["ati_data_save"][:, 2], label='z')
+        plt.legend()
+
+        plt.figure('torque')
+        plt.plot(data["ati_data_save"][:, 3], label='x')
+        plt.plot(data["ati_data_save"][:, 4], label='y')
+        plt.plot(data["ati_data_save"][:, 5], label='z')
+        plt.legend()
+        plt.show()
 
         traj_rope_tip_save.append(traj_rope_tip)
         traj_force_save.append(traj_force)

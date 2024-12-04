@@ -2,6 +2,7 @@ import sys
 sys.path.append("../gym/")
 from rope import Rope
 
+import os
 import numpy as np 
 import multiprocessing as mp
 from multiprocessing import Pool
@@ -72,6 +73,6 @@ if __name__ == "__main__":
     # Ensure directory exists
     os.makedirs(dataset_name, exist_ok=True)
 
-    pool = Pool(processes=10)
+    pool = Pool(processes=20)
     args = [data_set_size * i for i in range(100)]
     pool.starmap(construct_data, [(arg, dataset_name, data_set_size) for arg in args])

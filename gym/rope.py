@@ -81,6 +81,8 @@ class Rope(object):
         traj = self.UR5e.fk_traj(traj, True)
         traj = np.append(np.repeat([traj[0, :]], traj.shape[0], axis=0), traj, axis=0)
         traj = np.append(np.repeat([traj[0, :]], traj.shape[0], axis=0), traj, axis=0)
+        traj = np.append(np.repeat([traj[0, :]], traj.shape[0], axis=0), traj, axis=0)
+        traj = np.append(np.repeat([traj[0, :]], traj.shape[0], axis=0), traj, axis=0)
 
         # plt.plot(traj)
         # plt.show()
@@ -112,7 +114,6 @@ class Rope(object):
         omega = np.gradient(angle, axis=0, edge_order=2) / self.dt
         angular_acceleration = np.gradient(omega, axis=0, edge_order=2) / self.dt
 
-
         # plt.figure("pose x")
         # for i in range(0, self.N, 2):
         #     plt.plot(q_save[i, :].T, label=str(i))
@@ -124,7 +125,6 @@ class Rope(object):
         # plt.legend()
         # # plt.show()
         # # exit()
-
 
         # plt.figure("force x")
         # for i in range(0, self.N, 2):
@@ -160,7 +160,6 @@ class Rope(object):
         traj_pos = q_save[-2:, -500:] # trajectory of tip
 
         # forces_inertial = np.atleast_2d(forces_inertial[0, -500:] - forces_inertial[0, -499])
-
         # f_ati = f_save[3, :]
 
         f_base = np.atleast_2d(f_base[0, -500:])

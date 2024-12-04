@@ -161,7 +161,7 @@ if __name__ == "__main__":
               (0.001, 1e2), (1, 1e4),  # Kb
               (1e1, 1e5), (1e1, 1e5),  # Ks
               (1e-4, .1), (1e-5, 1e2), (1e-5, 1e2),  # damping
-              (0.028, 0.1), (.0103 - 0.01, .0103 + 0.01), (.06880 - 0.01, .06880 + 0.01),  # mass
+              (0.028, 0.2), (.0103 - 0.01, .0103 + 0.02), (.07380 - 0.01, .07380 + 0.01),  # mass
               (500, 600), (500, 600)]  # time sync
 
     log_bounds = [(np.log10(lower), np.log10(upper)) for lower, upper in bounds if lower > 0 and upper > 0]
@@ -174,13 +174,13 @@ if __name__ == "__main__":
         cost_fun, 
         args=[q0_save, qf_save, traj_rope_tip_save, traj_force_save],  
         bounds=log_bounds,
-        maxiter=500,
+        maxiter=100,
         # polish=False,
         # popsize=1,
         updating="deferred",
         init='sobol',
         vectorized=True,  # Enables vectorized mode
-        tol=0.00001,
+        tol=0.001,
         disp=True,
         callback=save_cost_history  # Track cost over iterations
     )

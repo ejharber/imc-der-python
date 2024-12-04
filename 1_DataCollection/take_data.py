@@ -40,7 +40,7 @@ class UR5e_CollectData(Node):
         self.video_lock = threading.Lock()
 
         # ati cb
-        self.ati_subscription = self.create_subscription(WrenchStamped, '/FT10881', self.ati_callback, 10)
+        self.ati_subscription = self.create_subscription(WrenchStamped, '/FT10395', self.ati_callback, 10)
         self.ati_data = None
         self.ati_data_zero = None
 
@@ -237,7 +237,7 @@ class UR5e_CollectData(Node):
                     #     count += 1
                     #     continue 
 
-                    # if count < 21:
+                    # if count < 7:
                     #     count += 1
                     #     continue 
 
@@ -327,6 +327,9 @@ class UR5e_CollectData(Node):
         q0 = np.copy(self.home_joint_pose)
         qf = np.copy(q)
 
+        q0[-1] = 0
+        qf[-1] = 0
+
         traj = self.UR5e.create_trajectory(q0, qf, time=1)
         velocity = 3
         acceleration = 5
@@ -395,8 +398,8 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Parameters: save path and N (number of swings)
-    save_path = "N4"
-    N = 4 # Number of swings
+    save_path = "test"
+    N = 1 # Number of swings
 
     ur5e = UR5e_CollectData(save_path=save_path, N=N)
 
