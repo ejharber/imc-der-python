@@ -42,6 +42,14 @@ from model_iterative import LSTMMLPModel
 
 import matplotlib.pyplot as plt
 
+from scipy.fft import fft, fftfreq
+from scipy.signal import butter, lfilter, freqz, sosfilt, sosfiltfilt
+
+def butter_lowpass_filter(data, cutoff=5, fs=500.0, order=3):
+    sos = butter(order, cutoff, fs=fs, btype='low', analog=False, output='sos')
+    filtered = sosfiltfilt(sos, data)
+    return filtered
+
 class UR5e_EvaluateIterative(UR5e_CollectData):
     def __init__(self, save_path, zeroshot_model_file="N2_all", iterative_model_file="N2_all", params_file="N3_all", num_samples=10000):
         super().__init__(save_path)
@@ -276,7 +284,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
         for count in range(self.num_samples):
 
-            if count < 8: continue 
+            # if count < 12: continue 
 
             q0 = np.array([180.0, -53.25, 134.66, -171.28, -90.0, 0.0])
             qf = np.array([180.0, -90.0, 100.0, -180.0, -90.0, 0.0])
@@ -381,6 +389,10 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
                 # Extract actions, goals, and trajectories
                 traj_pos = np.copy(mocap_data_robot_save[round(self.params[-1]) + 500:round(self.params[-1] + 1000), :])
+                # plt.plot(ati_data_save[:, 2])
+                ati_data_save = butter_lowpass_filter(ati_data_save.T).T
+                # plt.plot(ati_data_save[:, 2])
+                # plt.show()
                 traj_force = np.copy(ati_data_save[round(self.params[-2]) + 500:round(self.params[-2] + 1000), 2:3])
                 traj = np.append(traj_pos, traj_force, axis=1)
 
@@ -399,9 +411,9 @@ def main(args=None):
 
     rclpy.init(args=args)
 
-    save_path = "N2_pose_iterative"
-    zeroshot_model_file = "N2_pose"
-    iterative_model_file = "dgoal_daction_noise_N2_pose_large_new"
+    save_path = "N2_all_iterative"
+    zeroshot_model_file = "N2_all"
+    iterative_model_file = "dgoal_daction_noise_N2_all_large_new"
     params_file = "N2_2_all"
     num_samples = 20
 

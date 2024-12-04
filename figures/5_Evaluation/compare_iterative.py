@@ -75,6 +75,8 @@ def plot_goals_and_mocap(data_files, params_file_name, j_value):
 
     return np.mean(mse_values), np.std(mse_values)
 
+import matplotlib.ticker as ticker
+
 def plot_average_mse(mse_values_dict, j_values):
     """
     Plot the average MSE from two datasets with comparison.
@@ -87,17 +89,28 @@ def plot_average_mse(mse_values_dict, j_values):
     colors = ['blue', 'orange']
     for idx, (label, mse_data) in enumerate(mse_values_dict.items()):
         mse_values, std_values = mse_data
-        plt.plot(j_values, mse_values, marker='o', color=colors[idx], label=f"{label} - Average MSE")
-        lower_bound = [mse - std for mse, std in zip(mse_values, std_values)]
-        upper_bound = [mse + std for mse, std in zip(mse_values, std_values)]
+        mse_values_mm = [mse * 1000 for mse in mse_values]  # Convert MSE to mm
+        std_values_mm = [std * 1000 for std in std_values]  # Convert Std Dev to mm
+        
+        plt.plot(j_values, mse_values_mm, marker='o', color=colors[idx], label=f"{label} - Average MSE")
+        lower_bound = [mse - std for mse, std in zip(mse_values_mm, std_values_mm)]
+        upper_bound = [mse + std for mse, std in zip(mse_values_mm, std_values_mm)]
         plt.fill_between(j_values, lower_bound, upper_bound, color=colors[idx], alpha=0.2, label=f"{label} - 1 Std. Dev.")
     
-    plt.xlabel("j Value")
-    plt.ylabel("Average MSE (m)")
+    plt.xlabel("Number of Iterations")  # Change X-axis label
+    plt.ylabel("Average MSE (mm)")  # Update Y-axis label to mm
     plt.title("Comparison of Average MSE Between Main and Secondary Goals")
     plt.grid(True)
     plt.legend()
+
+    # Set the Y-axis to integer ticks
+    plt.gca().yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+
+    # Set the X-axis ticks to every 1
+    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(1))
+    
     plt.show()
+
 
 def main():
     input_dirs = ['../../5_Evaluation/N2_all_iterative/', '../../5_Evaluation/N2_pose_iterative/']

@@ -13,13 +13,13 @@ from load_data import *
 from model_iterative import LSTMMLPModel
 
 # Define model parameters at the beginning
-train_dataset_name = "N2_all"  # Specify your dataset name
+train_dataset_name = "N2_all_large"  # Specify your dataset name
 train_params_file_name = "N2_all"
 validation_dataset_name = "N4"
 validation_params_file_name = "N2_all"
 
 # Define x_lstm_type
-x_lstm_type = 1  # 0: all dimensions, 1: first two dimensions, 2: third dimension
+x_lstm_type = 0  # 0: all dimensions, 1: first two dimensions, 2: third dimension
 
 input_size_lstm = None  # To be determined after loading data
 input_size_classic = None  # To be determined after loading data
@@ -34,9 +34,8 @@ learning_rate = 0.00001
 momentum = 0.9
 checkpoint_freq = 50  # Frequency to save checkpoints
 
-
 # Create a folder for saving checkpoints and final models based on dataset name
-checkpoint_folder = f"checkpoints_dgoal_daction_noise_N2_pose_new"
+checkpoint_folder = f"checkpoints_dgoal_daction_noise_{train_dataset_name}_new2"
 os.makedirs(checkpoint_folder, exist_ok=True)
 
 def plot_curves(train_losses, test_losses, valid_losses, folder):

@@ -191,6 +191,9 @@ def load_realworlddata_iterative(filter_data_file_name, params_file_name, seed=0
     delta_goals = delta_goals.reshape(-1, delta_goals.shape[-1])
     traj = traj.reshape(-1, traj.shape[2], traj.shape[3])
 
+    plt.plot(traj[:, :, 2].T)
+    plt.show()
+
     # Organize data into a dictionary
     valid_data = {
         "time_series": traj,
