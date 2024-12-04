@@ -9,13 +9,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-from scipy.fft import fft, fftfreq
-from scipy.signal import butter, lfilter, freqz, sosfilt, sosfiltfilt
-
 from CustomRobots import *
-
-import numpy as np 
-from scipy.optimize import differential_evolution
 
 data = np.load("params/N2_2_all.npz")
 print(data["params"])
@@ -52,7 +46,7 @@ for i in range(q0_save.shape[0]):
     success, traj_pos_sim, traj_force_sim, traj_force_sim_base, traj_force_sim_rope, q_save, _ = rope.run_sim(q0, qf)
 
     # render pose
-    # rope.render(q_save, traj_pos_mocap, traj_pos_sim)
+    rope.render(q_save, traj_pos, traj_pos_sim)
     # rope.render(q_save, traj_pos_mocap, traj_pos_sim, "results/" + file[:-4] + ".gif")
     
     plt.figure("pose sim v real world data")

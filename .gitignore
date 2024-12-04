@@ -10,3 +10,4 @@ __pycache__
 *.png
 **/*.pth
 *.mp4
+*.gif
