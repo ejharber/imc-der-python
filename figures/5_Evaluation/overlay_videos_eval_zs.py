@@ -2,7 +2,6 @@ import os
 import cv2
 import numpy as np
 
-
 def get_video_and_data_files(directory):
     """
     Get a list of .mp4 video files and their corresponding .npz data files in a directory.
@@ -139,7 +138,6 @@ def overlay_plus_on_video(video_file, data_file, params_file_name, output_file):
     cap.release()
     out.release()
     print(f"Processed video saved: {output_file}")
-
 
 def overlay_videos(video_files, data_files, output_path, params_file_name):
     """

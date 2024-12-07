@@ -29,10 +29,16 @@ def clean_raw_data():
         traj_force = data["ati_data_save"][:, 2:3]
 
         plt.figure('force')
-        plt.plot(data["ati_data_save"][:, 0], label='x')
-        plt.plot(data["ati_data_save"][:, 1], label='y')
-        plt.plot(data["ati_data_save"][:, 2], label='z')
-        plt.legend()
+        plt.plot(np.linspace(0, 1, 500), data["ati_data_save"][500:1000, 2], label='z')
+
+        # Adjust font sizes
+        font_size = 14  # Adjust this value to your desired font size
+        plt.xlabel('time (s)', fontsize=font_size)
+        plt.ylabel('Force (N)', fontsize=font_size)
+        plt.title('Force measured over swing', fontsize=font_size)
+        plt.legend(fontsize=font_size)
+
+        plt.show()
 
         plt.figure('torque')
         plt.plot(data["ati_data_save"][:, 3], label='x')

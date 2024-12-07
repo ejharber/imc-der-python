@@ -10,10 +10,10 @@ def run_simulation(x0, u0, N, dt, dL0, g, damp, m1, traj):
     # Initial velocity
     u0 = np.array([u0]).T
 
-    try:
-        return _run_simulation(q0, u0, N, dt, dL0, g, damp, m1, traj)
-    except:
-        return [], [], [], False, []
+    # try:
+    return _run_simulation(q0, u0, N, dt, dL0, g, damp, m1, traj)
+    # except:
+        # return [], [], [], False
 
 @jit(cache=True, nopython=True)
 def _run_simulation(q0, u0, N, dt, dL0, g, damp, m1, traj):

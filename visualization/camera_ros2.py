@@ -8,6 +8,7 @@ import subprocess
 import subprocess
 
 def set_logitech_camera_settings(camera, brightness=100, contrast=100, saturation=100, sharpness=100, exposure=0):
+    return
     # Set brightness
     subprocess.run(f"v4l2-ctl -d /dev/video{camera} -c brightness=150", shell=True)  # Changed device path to /dev/video4
 
@@ -38,7 +39,7 @@ class ImagePublisher(Node):
         super().__init__('image_publisher')
         self.publisher_ = self.create_publisher(Image, '/camera/raw_image', 1)
         self.bridge = CvBridge()
-        camera = 0
+        camera = 3
         set_logitech_camera_settings(camera)
         self.cap = cv2.VideoCapture(camera)
 
