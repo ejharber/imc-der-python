@@ -95,10 +95,13 @@ class UR5eCustom(Robot):
         return traj
 
     def fk_traj(self, traj, two_dimention=False):
-        def getAngle(P, Q):
+        def getAngle(P, Q): # rodriguiz formula
             R = np.dot(P, Q.T)
             cos_theta = (np.trace(R)-1)/2
+            if cos_theta >= 1 and cos_theta <= 1 + 1e-7: # floating point error
+                cos_theta = 1
             return np.arccos(cos_theta)
+
         traj_fk = []
 
         zero_pose = None

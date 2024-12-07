@@ -7,10 +7,18 @@ sys.path.append("../1_DataCollection")
 
 import matplotlib.pyplot as plt
 
+from scipy.fft import fft, fftfreq
+from scipy.signal import butter, lfilter, freqz, sosfilt, sosfiltfilt
+
+def butter_lowpass_filter(data, cutoff=5, fs=500.0, order=1):
+    sos = butter(order, cutoff, fs=fs, btype='low', analog=False, output='sos')
+    filtered = sosfiltfilt(sos, data)
+    return filtered
+
 def clean_raw_data():
 
     file_path = "../1_DataCollection/"
-    folder_name = "N1"
+    folder_name = "N4"
 
     traj_rope_tip_save = []
     traj_force_save = []
@@ -26,20 +34,36 @@ def clean_raw_data():
         data = np.load(file_name)
 
         traj_rope_tip = data["mocap_data_robot_save"]
+        traj_rope_tip = butter_lowpass_filter(traj_rope_tip.T).T
+
         traj_force = data["ati_data_save"][:, 2:3]
+        traj_force = butter_lowpass_filter(traj_force.T).T
+
+        print(file)
+        
+        plt.figure('pose')
+        plt.plot(data["mocap_data_robot_save"], label='unfiltered')
+        plt.plot(traj_rope_tip, label='filtered')
+        plt.legend()
 
         plt.figure('force')
-        plt.plot(data["ati_data_save"][:, 0], label='x')
-        plt.plot(data["ati_data_save"][:, 1], label='y')
-        plt.plot(data["ati_data_save"][:, 2], label='z')
-        plt.legend()
-
-        plt.figure('torque')
-        plt.plot(data["ati_data_save"][:, 3], label='x')
-        plt.plot(data["ati_data_save"][:, 4], label='y')
-        plt.plot(data["ati_data_save"][:, 5], label='z')
+        plt.plot(data["ati_data_save"][:, 2], label='unfiltered')
+        plt.plot(traj_force, label='filtered')
         plt.legend()
         plt.show()
+
+        # plt.figure('force')
+        # plt.plot(data["ati_data_save"][:, 0], label='x')
+        # plt.plot(data["ati_data_save"][:, 1], label='y')
+        # plt.plot(data["ati_data_save"][:, 2], label='z')
+        # plt.legend()
+
+        # plt.figure('torquee')
+        # plt.plot(data["ati_data_save"][:, 3], label='x')
+        # plt.plot(data["ati_data_save"][:, 4], label='y')
+        # plt.plot(data["ati_data_save"][:, 5], label='z')
+        # plt.legend()
+        # plt.show()
 
         traj_rope_tip_save.append(traj_rope_tip)
         traj_force_save.append(traj_force)
@@ -65,7 +89,7 @@ def clean_raw_data():
 
     plt.show()
 
-    np.savez("filtered_data/" + folder_name, traj_rope_tip_save=traj_rope_tip_save, traj_force_save=traj_force_save, q0_save=q0_save, qf_save=qf_save)
+    np.savez("filtered_data/" + folder_name + "filtered", traj_rope_tip_save=traj_rope_tip_save, traj_force_save=traj_force_save, q0_save=q0_save, qf_save=qf_save)
 
 if __name__ == "__main__":
     clean_raw_data()

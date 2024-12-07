@@ -148,7 +148,7 @@ def cacluate_std(params, q0_save, qf_save, traj_rope_tip_save, traj_force_save):
 
 if __name__ == "__main__":
     folder_name = "filtered_data"
-    file = "N2.npz"
+    file = "N2_filtered.npz"
     file_name = folder_name + "/" + file
     data = np.load(file_name)
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
               (1e1, 1e5), (1e1, 1e5),  # Ks
               (1e-4, .1), (1e-5, 1e2), (1e-5, 1e2),  # damping
               (0.028, 0.2), (.0103 - 0.01, .0103 + 0.02), (.07380 - 0.01, .07380 + 0.01),  # mass
-              (500, 600), (500, 600)]  # time sync
+              (100, 150), (100, 150)]  # time sync
 
     log_bounds = [(np.log10(lower), np.log10(upper)) for lower, upper in bounds if lower > 0 and upper > 0]
 
@@ -174,13 +174,13 @@ if __name__ == "__main__":
         cost_fun, 
         args=[q0_save, qf_save, traj_rope_tip_save, traj_force_save],  
         bounds=log_bounds,
-        maxiter=100,
+        maxiter=200,
         # polish=False,
         # popsize=1,
         updating="deferred",
         init='sobol',
         vectorized=True,  # Enables vectorized mode
-        tol=0.001,
+        tol=0.01,
         disp=True,
         callback=save_cost_history  # Track cost over iterations
     )

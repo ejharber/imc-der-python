@@ -30,7 +30,7 @@ class UR5e_CollectData(Node):
         self.save_path = save_path  # Path where data will be saved
         self.N = N  # Number of swings to perform
 
-        self.home_joint_pose = [180, -53.25, 134.66, -171.28, -90, 0]
+        self.home_joint_pose = [180, -80.55, 138.72, -148.02, -90, 0]
         self.home_cart_pose = None
 
         # Locks for thread-safe access
@@ -40,7 +40,7 @@ class UR5e_CollectData(Node):
         self.video_lock = threading.Lock()
 
         # ati cb
-        self.ati_subscription = self.create_subscription(WrenchStamped, '/FT10395', self.ati_callback, 10)
+        self.ati_subscription = self.create_subscription(WrenchStamped, '/FT10881', self.ati_callback, 10)
         self.ati_data = None
         self.ati_data_zero = None
 
@@ -204,17 +204,18 @@ class UR5e_CollectData(Node):
     def reset_data(self):
         self.take_data_iter = 0
         # with self.ati_lock:
-        self.ati_data_save = np.zeros((1500, 6))
+        max_count = 800
+        self.ati_data_save = np.zeros((max_count, 6))
 
         # with self.mocap_lock:
-        self.mocap_data_save = np.zeros((1500, 7, 3))
-        self.mocap_data_camera_save = np.zeros((1500, 3, 2))
-        self.mocap_data_robot_save = np.zeros((1500, 2))
+        self.mocap_data_save = np.zeros((max_count, 7, 3))
+        self.mocap_data_camera_save = np.zeros((max_count, 3, 2))
+        self.mocap_data_robot_save = np.zeros((max_count, 2))
 
-        self.ur5e_cmd_data_save = np.zeros((1500, 6))
-        self.ur5e_tool_data_save = np.zeros((1500, 6))
-        self.ur5e_jointstate_data_save = np.zeros((1500, 6))
-        self.ros_time_save = np.zeros((1500, 1))
+        self.ur5e_cmd_data_save = np.zeros((max_count, 6))
+        self.ur5e_tool_data_save = np.zeros((max_count, 6))
+        self.ur5e_jointstate_data_save = np.zeros((max_count, 6))
+        self.ros_time_save = np.zeros((max_count, 1))
 
     def take_data_routine(self):
         print("take data")
@@ -237,7 +238,7 @@ class UR5e_CollectData(Node):
                     #     count += 1
                     #     continue 
 
-                    # if count < 7:
+                    # if count < 59:
                     #     count += 1
                     #     continue 
 
@@ -252,7 +253,7 @@ class UR5e_CollectData(Node):
                         self.reset_data()
 
                         time.sleep(0.2)
-                        qf = [180, -90, 100, -180, -90, 0]
+                        qf = [180, -100, 100, -180, -90, 0]
                         qf = [qf[0], dq1 + qf[1], dq2 + qf[2], dq3 + qf[3], qf[4], 0]
 
                         self.go_to_home()
@@ -291,10 +292,12 @@ class UR5e_CollectData(Node):
                             continue 
 
                         if np.any(abs(np.diff(np.array(self.ur5e_jointstate_data_save), axis=0)) > 0.015):
+                            # plt.plot(np.array(self.ur5e_jointstate_data_save))
+                            # plt.show()
                             print('discontinuous command error')
                             continue 
 
-                        if not np.any(np.array(self.mocap_data_save)[400:1100, :, [0, 2]] == 0):
+                        if not np.any(np.array(self.mocap_data_save)[100:700, :, [0, 2]] == 0):
                             break
                         else:
                             print('could not find a mocap frame, swing again')
@@ -327,9 +330,6 @@ class UR5e_CollectData(Node):
         q0 = np.copy(self.home_joint_pose)
         qf = np.copy(q)
 
-        q0[-1] = 0
-        qf[-1] = 0
-
         traj = self.UR5e.create_trajectory(q0, qf, time=1)
         velocity = 3
         acceleration = 5
@@ -342,7 +342,7 @@ class UR5e_CollectData(Node):
         ros_time = self.get_clock().now()
         ros_time_start = ros_time.nanoseconds * 1e-9  # Convert nanoseconds to seconds
 
-        for _ in range(500):
+        for _ in range(100):
             self.take_data()
             time.sleep(dt)
 
@@ -358,7 +358,7 @@ class UR5e_CollectData(Node):
 
             self.rtde_c.waitPeriod(t_start)
 
-        for _ in range(500):
+        for _ in range(200):
             self.take_data()
             time.sleep(dt)
 
@@ -386,11 +386,11 @@ class UR5e_CollectData(Node):
 
     def reset_rope(self):
         p = np.copy(self.home_cart_pose)
-        p[2] -= 0.045
-        self.rtde_c.moveL(p, speed=0.01, acceleration=0.01)
+        p[2] -= 0.18
+        self.rtde_c.moveL(p, speed=0.05, acceleration=0.01)
         time.sleep(0.5)
         p = np.copy(self.home_cart_pose)
-        self.rtde_c.moveL(p, speed=0.005, acceleration=0.01)
+        self.rtde_c.moveL(p, speed=0.01, acceleration=0.01)
         time.sleep(2)
         self.zero_ati()
 
@@ -398,8 +398,10 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Parameters: save path and N (number of swings)
-    save_path = "test"
-    N = 1 # Number of swings
+    save_path = "N4"
+    N = 4 # Number of swings
+
+    os.makedirs(save_path, exist_ok=True)
 
     ur5e = UR5e_CollectData(save_path=save_path, N=N)
 

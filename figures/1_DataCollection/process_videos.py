@@ -35,8 +35,8 @@ def get_plus_positions_from_video(data_file, params_file_name):
     data = np.load(data_file)
     params = np.load(os.path.join(os.path.dirname(__file__), f"../../2_SysID/params/{params_file_name}.npz"))["params"]
 
-    goals = data["mocap_data_camera_save"][500 + round(params[-1]), 2, :]  # (x, y) in pixels
-    goal_time = data["ros_time_save"][500 + round(params[-1])]
+    goals = data["mocap_data_camera_save"][100 + round(params[-1]), 2, :]  # (x, y) in pixels
+    goal_time = data["ros_time_save"][100 + round(params[-1])]
     camera_time = data["ros_time_camera_save"]
     goal_frame_idx = np.argmin(abs(camera_time - goal_time))
 
@@ -328,7 +328,7 @@ def convert_mp4_to_gif(input_folder, output_folder, start_time=0, end_time=10):
 
 # Main Workflow
 def main():
-    directory = "N4"
+    directory = "N2"
     input_dir = '../../1_DataCollection/' + directory
     output_dir = './' + directory
     os.makedirs(output_dir, exist_ok=True)
@@ -340,17 +340,17 @@ def main():
         video_file = video_files[i]
         data_file = data_files[i]
         output_file = os.path.join(output_dir, f"processed_{os.path.basename(video_file)}")
-        overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_name="N2", output_file=output_file)
+        overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_name="N2_all", output_file=output_file)
         processed_videos.append(output_file)
 
     if video_files and data_files:
         output_file = os.path.join(output_dir, "overlayed_video.mp4")
-        overlay_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2")
+        overlay_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2_all")
 
     if video_files and data_files:
         for speed_factor in [1, 2, 4, 8, 16]:
             output_file = os.path.join(output_dir, f"appended_video_{speed_factor}.mp4")
-            append_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2", speed_factor=speed_factor)
+            append_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2_all", speed_factor=speed_factor)
 
     convert_mp4_to_gif(directory, directory, start_time=0, end_time=1e6)  # Convert 0-10 seconds of each video
 

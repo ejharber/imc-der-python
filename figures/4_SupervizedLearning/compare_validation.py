@@ -25,7 +25,7 @@ def plot_losses(
         print("Error: The number of model paths and model names must match.")
         return
 
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(12, 8), dpi=100)
     
     # Define colors for models
     colors = ['blue', 'orange']  # First color for Position, second for Position + Force
@@ -69,6 +69,7 @@ def plot_losses(
     
         # Plot validation losses with a solid line and circle markers
         if 'valid_losses' in checkpoint:
+            print(checkpoint['valid_losses'][-1])
             plt.plot(
                 checkpoint['valid_losses'],
                 label=f"{model_name}: Validation",

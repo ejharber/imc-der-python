@@ -11,14 +11,14 @@ import numpy as np
 
 from CustomRobots import *
 
-data = np.load("params/N2_2_all.npz")
+data = np.load("params/N2_fake.npz")
 print(data["params"])
 params = data["params"]
 
 rope = Rope(params)
 
 folder_name = "filtered_data"
-file = "N1.npz"
+file = "N2.npz"
 file_name = folder_name + "/" + file
 
 data = np.load(file_name)
@@ -38,8 +38,8 @@ for i in range(q0_save.shape[0]):
 
     q0 = q0_save[i, :]
     qf = qf_save[i, :]
-    traj_pos = traj_pos_save[i, round(500+params[-1]):round(params[-1])+1000, :]
-    traj_force = traj_force_save[i, round(500+params[-2]):round(params[-2])+1000, :]
+    traj_pos = traj_pos_save[i, round(params[-1]):round(params[-1])+500, :]
+    traj_force = traj_force_save[i, round(params[-2]):round(params[-2])+500, :]
     # traj_pos = traj_pos_save[i, :, :]
     # traj_force = traj_force_save[i, :, :]
 
