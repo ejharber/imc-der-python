@@ -92,14 +92,14 @@ def plot_average_mse(mse_values_dict, j_values):
         mse_values_mm = [mse * 1000 for mse in mse_values]  # Convert MSE to mm
         std_values_mm = [std * 1000 for std in std_values]  # Convert Std Dev to mm
         
-        plt.plot(j_values, mse_values_mm, marker='o', color=colors[idx], label=f"{label} - Average MSE")
+        plt.plot(j_values, mse_values_mm, marker='o', color=colors[idx], label="Position + Force: Evaluation")
         lower_bound = [mse - std for mse, std in zip(mse_values_mm, std_values_mm)]
         upper_bound = [mse + std for mse, std in zip(mse_values_mm, std_values_mm)]
-        plt.fill_between(j_values, lower_bound, upper_bound, color=colors[idx], alpha=0.2, label=f"{label} - 1 Std. Dev.")
+        plt.fill_between(j_values, lower_bound, upper_bound, color=colors[idx], alpha=0.2)
     
     plt.xlabel("Number of Iterations")  # Change X-axis label
     plt.ylabel("Average MSE (mm)")  # Update Y-axis label to mm
-    plt.title("Comparison of Average MSE Between Main and Secondary Goals")
+    plt.title("Evaluation of Iterative Policy with Force Feedback")
     plt.grid(True)
     plt.legend()
 
@@ -113,7 +113,8 @@ def plot_average_mse(mse_values_dict, j_values):
 
 
 def main():
-    input_dirs = ['../../5_Evaluation/N2_all_iterative/', '../../5_Evaluation/N2_pose_iterative/']
+    # input_dirs = ['../../5_Evaluation/N2_all_iterative/', '../../5_Evaluation/N2_pose_iterative/']
+    input_dirs = ['../../5_Evaluation/N2_all_iterative/']
     desired_j_values = [0, 1, 2, 3, 4]
     params_file_name = "N3"
 
@@ -121,6 +122,7 @@ def main():
 
     for input_dir in input_dirs:
         label = os.path.basename(os.path.normpath(input_dir))
+        labels = ["Position + Force: Evaluation"]
         data_files_by_j = filter_files_by_j(input_dir, desired_j_values)
 
         average_mse_values = []
@@ -137,6 +139,8 @@ def main():
                 print(f"No files found for j = {j_value} in {label}.")
 
         mse_values_dict[label] = (average_mse_values, average_std_values)
+
+        print(average_mse_values)
 
     plot_average_mse(mse_values_dict, desired_j_values)
 

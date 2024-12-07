@@ -35,12 +35,13 @@ def get_plus_positions_from_video(data_file, params_file_name):
     data = np.load(data_file)
     params = np.load(os.path.join(os.path.dirname(__file__), f"../../2_SysID/params/{params_file_name}.npz"))["params"]
 
-    goals = data["mocap_data_camera_save"][100 + round(params[-1]), 2, :]  # (x, y) in pixels
-    goal_time = data["ros_time_save"][100 + round(params[-1])]
+    goals = data["mocap_data_camera_save"][500 + round(params[-1]), 2, :]  # (x, y) in pixels
+    goals2 = data["goal_camera_save"]
+    goal_time = data["ros_time_save"][500 + round(params[-1])]
     camera_time = data["ros_time_camera_save"]
     goal_frame_idx = np.argmin(abs(camera_time - goal_time))
 
-    return goals, goal_frame_idx
+    return goals, goals2, goal_frame_idx
 
 def overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_name, output_file):
     """
@@ -187,14 +188,28 @@ def overlay_videos_with_matplotlib(video_files, data_files, output_path, params_
     plt.close(fig)
     print(f"Combined video saved: {output_path}")
 
-def append_videos_with_matplotlib(video_files, data_files, output_path, params_file_name, speed_factor):
+def append_videos_with_matplotlib(video_files, data_files, output_path, params_file_name, speed_factor, sort_order=None):
     """
     Append multiple videos one after another with measured goals staying visible.
     Display the speed factor in the bottom-left corner and adjust the video playback speed.
+    
+    Args:
+        video_files (list): List of paths to video files.
+        data_files (list): List of paths to data files.
+        output_path (str): Path to save the output video.
+        params_file_name (str): Name of the parameter file for goal extraction.
+        speed_factor (float): Speed factor to adjust video playback speed.
+        sort_order (list, optional): List specifying the desired order of video files. Defaults to None.
     """
     if not video_files:
         print("No video files to process.")
         return
+
+    # Automatically sort the video files alphabetically by filename
+    sorted_indices = sorted(range(len(video_files)), key=lambda i: video_files[i])
+    video_files = [video_files[i] for i in sorted_indices]
+    print(video_files)
+    data_files = [data_files[i] for i in sorted_indices]
 
     # Open all videos to check properties
     caps = [cv2.VideoCapture(file) for file in video_files]
@@ -216,7 +231,8 @@ def append_videos_with_matplotlib(video_files, data_files, output_path, params_f
     # Loop through each video sequentially
     goals = np.zeros((0, 2))
     for video_idx, cap in enumerate(caps):
-        goal, goal_frame_idx = plus_positions[video_idx]
+        goal, goal2, goal_frame_idx = plus_positions[video_idx]
+        print(goal2)
         frame_idx = 0
 
         while cap.isOpened():
@@ -245,6 +261,9 @@ def append_videos_with_matplotlib(video_files, data_files, output_path, params_f
                 goals = np.append(goals, [goal], axis=0)
                 goal_frame_idx = np.inf
 
+            print(goal2[0, 0], goal2[0, 1], goals)
+            ax.plot(1266.,   724., marker='+', color='green', markersize=18, linestyle='', label='Desired')
+
             if goals.shape[0] > 0:
                 ax.plot(goals[:, 0], goals[:, 1], marker='+', color='gold', markersize=12, linestyle='', label='Measured')
             else:
@@ -270,11 +289,6 @@ def append_videos_with_matplotlib(video_files, data_files, output_path, params_f
             plt_frame = plt_frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
             plt_frame = cv2.cvtColor(plt_frame, cv2.COLOR_RGB2BGR)  # Convert back to BGR for OpenCV
 
-            # print(plt_frame.shape, frame_width, frame_height)
-            # Crop the plt_frame to the central region
-            # cropped_frame = plt_frame[100:-100, 100:-100, :]
-            # print(cropped_frame.shape, frame_width, frame_height)
-
             # Write the frame to the output video
             out.write(plt_frame)
 
@@ -287,49 +301,66 @@ def append_videos_with_matplotlib(video_files, data_files, output_path, params_f
     plt.close(fig)
     print(f"Appended video saved: {output_path}")
 
+import os
+from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
+from moviepy import VideoFileClip
+import subprocess
+
 def convert_mp4_to_gif(input_folder, output_folder, start_time=0, end_time=10):
-    # Make sure the output folder exists
+    # Ensure the output folder exists
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
     # Loop through all files in the input folder
     for filename in os.listdir(input_folder):
         if filename.endswith(".mp4"):
-            # Full path to the input video file
             input_path = os.path.join(input_folder, filename)
-            
-            # Define the output subclip file path
+            output_filename = filename.replace(".mp4", ".gif")
+            output_path = os.path.join(output_folder, output_filename)
+
+            # Define temporary paths
             temp_subclip_path = os.path.join(output_folder, f"temp_{filename}")
+            temp_palette_path = os.path.join(output_folder, f"palette_{filename.replace('.mp4', '.png')}")
             
-            # Extract the subclip from the video (start_time to end_time)
+            # Extract subclip
             ffmpeg_extract_subclip(input_path, start_time, end_time, temp_subclip_path)
             print(f"Extracted subclip from {filename} between {start_time} and {end_time} seconds.")
             
-            # Load the extracted subclip
-            subclip = VideoFileClip(temp_subclip_path)
+            # Use ffmpeg to optimize GIF colors
+            try:
+                # Step 1: Generate palette for the GIF
+                subprocess.run([
+                    "ffmpeg",
+                    "-y",  # Overwrite output files without asking
+                    "-i", temp_subclip_path,
+                    "-vf", "fps=30,scale=640:-1:flags=lanczos,palettegen",
+                    temp_palette_path
+                ], check=True)
+                print(f"Generated palette for {output_filename}.")
+                
+                # Step 2: Create GIF using the palette
+                subprocess.run([
+                    "ffmpeg",
+                    "-y",
+                    "-i", temp_subclip_path,
+                    "-i", temp_palette_path,
+                    "-lavfi", "fps=30,scale=640:-1:flags=lanczos [x]; [x][1:v] paletteuse",
+                    output_path
+                ], check=True)
+                print(f"Converted {filename} to optimized GIF: {output_path}")
             
-            # Downsample the video by half
-            downsampled_subclip = subclip.resized(0.5)  # Resize to 50% of original dimensions
-            
-            # Define the output gif file path
-            output_filename = filename.replace(".mp4", ".gif")
-            output_path = os.path.join(output_folder, output_filename)
-            
-            # Convert the resized subclip to gif and save
-            downsampled_subclip.write_gif(output_path)
-            print(f"Converted and downsampled subclip to {output_filename}")
-            
-            # Clean up resources
-            subclip.close()
-            downsampled_subclip.close()
-            
-            # Optionally, delete the temporary subclip file
-            os.remove(temp_subclip_path)
+            finally:
+                # Clean up temporary files
+                if os.path.exists(temp_subclip_path):
+                    os.remove(temp_subclip_path)
+                if os.path.exists(temp_palette_path):
+                    os.remove(temp_palette_path)
+
 
 # Main Workflow
 def main():
-    directory = "N2"
-    input_dir = '../../1_DataCollection/' + directory
+    directory = "N2_all_iterative"
+    input_dir = '../../5_Evaluation/' + directory
     output_dir = './' + directory
     os.makedirs(output_dir, exist_ok=True)
 
@@ -340,17 +371,17 @@ def main():
         video_file = video_files[i]
         data_file = data_files[i]
         output_file = os.path.join(output_dir, f"processed_{os.path.basename(video_file)}")
-        overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_name="N2_all", output_file=output_file)
+        # overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_name="N2", output_file=output_file)
         processed_videos.append(output_file)
 
     if video_files and data_files:
         output_file = os.path.join(output_dir, "overlayed_video.mp4")
-        overlay_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2_all")
+        # overlay_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2")
 
     if video_files and data_files:
-        for speed_factor in [1, 2, 4, 8, 16]:
+        for speed_factor in [2, 4, 8, 16]:
             output_file = os.path.join(output_dir, f"appended_video_{speed_factor}.mp4")
-            append_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2_all", speed_factor=speed_factor)
+            # append_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2", speed_factor=speed_factor)
 
     convert_mp4_to_gif(directory, directory, start_time=0, end_time=1e6)  # Convert 0-10 seconds of each video
 
