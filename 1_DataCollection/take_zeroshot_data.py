@@ -253,8 +253,8 @@ class UR5e_CollectData(Node):
                         self.reset_data()
 
                         time.sleep(0.2)
-                        qf = [180, -100, 100, -180, -90, 0]
-                        qf = [qf[0], dq1 + qf[1], dq2 + qf[2], dq3 + qf[3], qf[4], 0]
+                        qf = np.array([180.0, -100.0, 100.0, -180.0, -90.0, 0.0])
+                        qf[1:4] += np.array([dq1, dq2, dq3])
 
                         self.go_to_home()
                         self.reset_rope()
@@ -292,8 +292,6 @@ class UR5e_CollectData(Node):
                             continue 
 
                         if np.any(abs(np.diff(np.array(self.ur5e_jointstate_data_save), axis=0)) > 0.015):
-                            # plt.plot(np.array(self.ur5e_jointstate_data_save))
-                            # plt.show()
                             print('discontinuous command error')
                             continue 
 
@@ -398,7 +396,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Parameters: save path and N (number of swings)
-    save_path = "N4"
+    save_path = "N4_2"
     N = 4 # Number of swings
 
     os.makedirs(save_path, exist_ok=True)

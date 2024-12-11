@@ -7,7 +7,7 @@ import numpy as np
 import multiprocessing as mp
 from multiprocessing import Pool
 
-def construct_data(offset=0, dataset_name="N2_all", data_set_size=1000):
+def construct_data(offset, dataset_name, save_file, data_set_size):
     # Load simulation parameters
     params = np.load(f"../2_SysID/params/{dataset_name}.npz")["params"]
     rope = Rope(params)
@@ -29,8 +29,8 @@ def construct_data(offset=0, dataset_name="N2_all", data_set_size=1000):
         np.random.seed(i + offset)
 
         # Define initial and randomized target configurations
-        q0 = [180, -53.25, 134.66, -171.28, -90, 0]
-        qf = [180, -90, 100, -180, -90, 0]
+        q0 = [180, -80.55, 138.72, -148.02, -90, 0]
+        qf = [180.0, -100.0, 100.0, -180.0, -90.0, 0.0]
         qf[1] += np.random.uniform(-12, 12)
         qf[2] += np.random.uniform(-12, 12)
         qf[3] += np.random.uniform(-12, 12)
@@ -59,7 +59,7 @@ def construct_data(offset=0, dataset_name="N2_all", data_set_size=1000):
         fs_save.append(f_save)
 
     # Save all data into a .npz file
-    np.savez(f"{dataset_name}/{offset}",
+    np.savez(f"{save_file}/{offset}",
              q0_save=q0_save, qf_save=qf_save,
              traj_pos_save=traj_pos_save, traj_force_save=traj_force_save,
              traj_force_base_save=traj_force_base_save, traj_force_rope_save=traj_force_rope_save,
@@ -67,12 +67,13 @@ def construct_data(offset=0, dataset_name="N2_all", data_set_size=1000):
 
 if __name__ == "__main__":
 
-    dataset_name = "N2_all"
+    dataset_name = "N2_pose_80"
+    save_file = dataset_name + "_zs"
     data_set_size = 100
 
     # Ensure directory exists
-    os.makedirs(dataset_name, exist_ok=True)
+    os.makedirs(save_file, exist_ok=True)
 
-    pool = Pool(processes=20)
-    args = [data_set_size * i for i in range(100)]
-    pool.starmap(construct_data, [(arg, dataset_name, data_set_size) for arg in args])
+    pool = Pool(processes=10)
+    args = [data_set_size * i for i in range(1000)]
+    pool.starmap(construct_data, [(arg, dataset_name, save_file, data_set_size) for arg in args])

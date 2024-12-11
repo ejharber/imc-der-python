@@ -33,7 +33,7 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
     dL[3:] = dL_rope
 
     axial_damp = np.zeros((N-1))
-    axial_damp[1:3] = ati_damp
+    axial_damp[:3] = ati_damp
     axial_damp[3:] = rope_damp
 
     masses = np.ones((2 * N, 1))
@@ -66,9 +66,11 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
 
         while err > tol:
             iteration += 1
-            if iteration >= max_iteration:
-                print(f"Max iterations reached at timestep {c}, error: {err}")
+            if iteration >= max_iteration or err > 1e3 or np.any(np.isnan(q)):
+                print("max iter reached", c, err)
                 return q_save, u_save, f_save, False
+
+            f_save[:, c] = f_save[:, c] * 0
 
             f = M / dt @ ((q - q0) / dt - u0)  # Inertia
             J = M / dt ** 2.0
@@ -77,72 +79,69 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
             J += damp / dt
 
             for k in range(N-1):
-                indices = [2*k, 2*k+1, 2*k+2, 2*k+3]
-                xk, yk = q[indices[0]], q[indices[1]]
-                xkp1, ykp1 = q[indices[2]], q[indices[3]]
-                uk, vk = u0[indices[0]], u0[indices[1]]
-                ukp1, vkp1 = u0[indices[2]], u0[indices[3]]
+                indices = np.array([2*k, 2*k+1, 2*k+2, 2*k+3])
+                xk, yk = q[indices[0]].item(), q[indices[1]].item()
+                xkp1, ykp1 = q[indices[2]].item(), q[indices[3]].item()
+                uk, vk = u0[indices[0]].item(), u0[indices[1]].item()
+                ukp1, vkp1 = u0[indices[2]].item(), u0[indices[3]].item()
 
                 # Stretching forces
                 dFs = grad_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
                 dJs = hess_es(xk, yk, xkp1, ykp1, dL[k], Ks[k])
                 f[indices] += dFs
-                J[np.ix_(indices, indices)] += dJs
+                J[indices[0]:indices[3] + 1, indices[0]:indices[3] + 1] += dJs
 
                 # Update f_save for stretching forces
-                f_save[indices[2:4], c] += dFs[:2, 0]
-                f_save[indices[0:2], c] -= dFs[:2, 0]
+                f_save[indices[:2], c] -= dFs[2:, 0]
+                f_save[indices[2:], c] += dFs[:2, 0]
 
-                # Axial damping (extrinsic model)
-                dx, dy = xkp1 - xk, ykp1 - yk
-                length = np.sqrt(dx**2 + dy**2)
-                nx, ny = dx / length, dy / length  # Unit vector along the axis
-                rel_vel_x, rel_vel_y = ukp1 - uk, vkp1 - vk
-                rel_vel = rel_vel_x * nx + rel_vel_y * ny  # Relative velocity along the axis
-                damping_force = -axial_damp[k] * rel_vel
+                # # Axial damping (extrinsic model)
+                # dx, dy = xkp1 - xk, ykp1 - yk
+                # length = np.sqrt(dx**2 + dy**2)
+                # nx, ny = dx / length, dy / length  # Unit vector along the axis
+                # rel_vel_x, rel_vel_y = ukp1 - uk, vkp1 - vk
+                # rel_vel = rel_vel_x * nx + rel_vel_y * ny  # Relative velocity along the axis
+                # damping_force = -axial_damp[k] * rel_vel
 
-                # Add damping forces
-                f[indices[0]] += damping_force * nx
-                f[indices[1]] += damping_force * ny
-                f[indices[2]] -= damping_force * nx
-                f[indices[3]] -= damping_force * ny
+                # dFad = np.array([[damping_force * nx, damping_force * ny, -damping_force * nx, -damping_force * ny]])
+                # f[indices] += dFad
 
-                # Update f_save for damping forces
-                f_save[indices[2:4], c] += np.array([damping_force * nx, damping_force * ny])
-                f_save[indices[0:2], c] -= np.array([damping_force * nx, damping_force * ny])
+                # # Update f_save for stretching forces
+                # f_save[indices[:2], c] -= dFad[2:, 0]
+                # f_save[indices[2:], c] += dFad[:2, 0]
 
-                # Add damping contribution to Jacobian
-                dJ_damp = axial_damp[k] * np.array([
-                    [nx*nx, nx*ny, -nx*nx, -nx*ny],
-                    [nx*ny, ny*ny, -nx*ny, -ny*ny],
-                    [-nx*nx, -nx*ny, nx*nx, nx*ny],
-                    [-nx*ny, -ny*ny, nx*ny, ny*ny]
-                ])
-                J[np.ix_(indices, indices)] += dJ_damp
+                # # Add damping contribution to Jacobian
+                # dJ_damp = axial_damp[k] * np.array([
+                #     [nx*nx, nx*ny, -nx*nx, -nx*ny],
+                #     [nx*ny, ny*ny, -nx*ny, -ny*ny],
+                #     [-nx*nx, -nx*ny, nx*nx, nx*ny],
+                #     [-nx*ny, -ny*ny, nx*ny, ny*ny]
+                # ])
+                # J[indices[0]:indices[3] + 1, indices[0]:indices[3] + 1] += dJ_damp
 
             # Bending forces (for k >= 1)
             for k in range(1, N-1):
-                indices = [2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3]
-                xkm1, ykm1 = q[indices[0]], q[indices[1]]
-                xk, yk = q[indices[2]], q[indices[3]]
-                xkp1, ykp1 = q[indices[4]], q[indices[5]]
+                indices = np.array([2*k-2, 2*k-1, 2*k, 2*k+1, 2*k+2, 2*k+3])
+                xkm1, ykm1 = q[indices[0]].item(), q[indices[1]].item()
+                xk, yk = q[indices[2]].item(), q[indices[3]].item()
+                xkp1, ykp1 = q[indices[4]].item(), q[indices[5]].item()
 
                 # Compute bending forces and Jacobian
                 curvature0 = 0.0  # Assume a straight rod initially
                 dFb = grad_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, dL[k], Kb[k])
                 dJb = hess_eb(xkm1, ykm1, xk, yk, xkp1, ykp1, curvature0, dL[k], Kb[k])
                 f[indices] += dFb
-                J[np.ix_(indices, indices)] += dJb
+                J[indices[0]:indices[5] + 1, indices[0]:indices[5] + 1] += dJb
 
                 # Update f_save for bending forces
-                f_save[indices, c] += dFb[:, 0]
+                # f_save[indices, c] += dFb[:, 0]
 
             # Update positions using Newton-Raphson
             f_free = f[free_bot:free_top]
             J_free = J[free_bot:free_top, free_bot:free_top]
-            delta_q = np.linalg.solve(J_free, -f_free)
-            q[free_bot:free_top] += delta_q
-            err = np.linalg.norm(delta_q)
+            q_free -= np.linalg.solve(J_free, f_free)
+            q[free_bot:free_top] = q_free
+            err = np.sum(np.absolute(f_free))  # error is sum of forces bc we want f=0
 
         u0 = (q - q0) / dt
         q0 = q
@@ -150,7 +149,6 @@ def _run_simulation(q0, u0, N, dt, dL_stick, dL_ati, dL_rope, Kb_rope, Kb_connec
         u_save[:, c] = u0[:, 0]
 
     return q_save, u_save, f_save, True
-
 
 @jit(cache=True, nopython=True)
 def cross_mat(a):

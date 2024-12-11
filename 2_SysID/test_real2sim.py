@@ -11,7 +11,7 @@ import numpy as np
 
 from CustomRobots import *
 
-data = np.load("params/N2_fake.npz")
+data = np.load("params/N2_all_70.npz")
 print(data["params"])
 params = data["params"]
 

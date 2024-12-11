@@ -34,23 +34,23 @@ def clean_raw_data():
         data = np.load(file_name)
 
         traj_rope_tip = data["mocap_data_robot_save"]
-        traj_rope_tip = butter_lowpass_filter(traj_rope_tip.T).T
+        # traj_rope_tip = butter_lowpass_filter(traj_rope_tip.T).T
 
         traj_force = data["ati_data_save"][:, 2:3]
-        traj_force = butter_lowpass_filter(traj_force.T).T
+        # traj_force = butter_lowpass_filter(traj_force.T).T
 
-        print(file)
+        # print(file)
         
-        plt.figure('pose')
-        plt.plot(data["mocap_data_robot_save"], label='unfiltered')
-        plt.plot(traj_rope_tip, label='filtered')
-        plt.legend()
+        # plt.figure('pose')
+        # plt.plot(data["mocap_data_robot_save"], label='unfiltered')
+        # plt.plot(traj_rope_tip, label='filtered')
+        # plt.legend()
 
-        plt.figure('force')
-        plt.plot(data["ati_data_save"][:, 2], label='unfiltered')
-        plt.plot(traj_force, label='filtered')
-        plt.legend()
-        plt.show()
+        # plt.figure('force')
+        # plt.plot(data["ati_data_save"][:, 2], label='unfiltered')
+        # plt.plot(traj_force, label='filtered')
+        # plt.legend()
+        # plt.show()
 
         # plt.figure('force')
         # plt.plot(data["ati_data_save"][:, 0], label='x')
@@ -63,6 +63,10 @@ def clean_raw_data():
         # plt.plot(data["ati_data_save"][:, 4], label='y')
         # plt.plot(data["ati_data_save"][:, 5], label='z')
         # plt.legend()
+        # plt.show()
+
+        # plt.plot(data["ur5e_jointstate_data_save"], 'r.')
+        # plt.plot(data["ur5e_cmd_data_save"], 'b-')
         # plt.show()
 
         traj_rope_tip_save.append(traj_rope_tip)
@@ -89,7 +93,7 @@ def clean_raw_data():
 
     plt.show()
 
-    np.savez("filtered_data/" + folder_name + "filtered", traj_rope_tip_save=traj_rope_tip_save, traj_force_save=traj_force_save, q0_save=q0_save, qf_save=qf_save)
+    np.savez("filtered_data/" + folder_name + "", traj_rope_tip_save=traj_rope_tip_save, traj_force_save=traj_force_save, q0_save=q0_save, qf_save=qf_save)
 
 if __name__ == "__main__":
     clean_raw_data()

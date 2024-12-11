@@ -77,7 +77,7 @@ def load_realworlddata_zeroshot(filter_data_file_name, params_file_name, seed=0)
 
 ####################################################################################################
 
-def load_data_iterative(filter_data_file_name, params_file_name, seed=0, normalize=True, subset=10):
+def load_data_iterative(filter_data_file_name, params_file_name, seed=0, normalize=True, subset=1000):
     np.random.seed(seed)
 
     # Initialize containers
@@ -91,9 +91,9 @@ def load_data_iterative(filter_data_file_name, params_file_name, seed=0, normali
 
     # Load parameters and standard deviations
     params = np.load(params_path)["params"]
-    std_x = np.load(params_path)["std_x"]
-    std_y = np.load(params_path)["std_y"]
-    std_ati = np.load(params_path)["std_ati"]
+    std_x = np.load(params_path)["mocap_x_costs_std"][-1]
+    std_y = np.load(params_path)["mocap_y_costs_std"][-1]
+    std_ati = np.load(params_path)["ati_costs_std"][-1]
 
     # Iterate through the data files
     count = 0
@@ -164,42 +164,65 @@ def load_data_iterative(filter_data_file_name, params_file_name, seed=0, normali
             delta_actions_mean, delta_actions_std, delta_goals_mean, delta_goals_std,
             traj_mean, traj_std)
 
-def load_realworlddata_iterative(filter_data_file_name, params_file_name, seed=0):
+def load_realworlddata_iterative(filter_data_file_name, params_file_name, seed=0, subset=1000):
     np.random.seed(seed)
 
-    # Define file path and load data
-    file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../2_SysID/filtered_data/")
-    filter_data = np.load(os.path.join(file_path, filter_data_file_name) + ".npz")
+    # Initialize containers
+    all_delta_actions = []
+    all_delta_goals = []
+    all_delta_traj = []
 
-    file_path = os.path.dirname(os.path.realpath(__file__)) + "/../2_SysID/params/"
-    params = np.load(os.path.join(file_path, params_file_name) + ".npz")["params"]
+    # Paths for data files
+    folder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../2_SysID/filtered_data_iter/", filter_data_file_name)
+    params_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../2_SysID/params/", params_file_name + ".npz")
 
-    # Extract actions, goals, and trajectories
-    actions = filter_data["qf_save"][:, [1, 2, 3]]
-    goals = filter_data["traj_rope_tip_save"][:, round(params[-1] + 500), :]
-    traj_pos = filter_data["traj_rope_tip_save"][:, round(params[-1]):round(params[-1] + 500), :]
-    traj_force = filter_data["traj_force_save"][:, round(params[-2]):round(params[-2] + 500), :]
-    traj = np.append(traj_pos, traj_force, axis=2)
+    # Load parameters and standard deviations
+    params = np.load(params_path)["params"]
 
-    # Compute delta actions, goals, and trajectories
-    delta_actions = actions[np.newaxis, :, :] - actions[:, np.newaxis, :]
-    delta_goals = goals[np.newaxis, :, :] - goals[:, np.newaxis, :]
-    traj = 0 * traj[np.newaxis, :, :] + traj[:, np.newaxis, :, :]
+    # Iterate through the data files
+    count = 0
+    for file in os.listdir(folder_path):
+        if not file.endswith(".npz"):
+            continue
 
-    # Reshape deltas for concatenation
-    delta_actions = delta_actions.reshape(-1, delta_actions.shape[-1])
-    delta_goals = delta_goals.reshape(-1, delta_goals.shape[-1])
-    traj = traj.reshape(-1, traj.shape[2], traj.shape[3])
+        data = np.load(os.path.join(folder_path, file))
 
-    plt.plot(traj[:, :, 2].T)
-    plt.show()
+        actions = data["qf_save"][:, [1, 2, 3]]
+        goals = data["traj_rope_tip_save"][:, round(params[-1] + 500), :]
+        traj_pos = data["traj_rope_tip_save"][:, round(params[-1]):round(params[-1] + 500), :]
+        traj_force = data["traj_force_save"][:, round(params[-2]):round(params[-2] + 500), :]
+
+        # Combine position and force trajectories
+        traj_data = np.append(traj_pos, traj_force, axis=2)
+
+        # Compute pairwise differences for actions, goals, and trajectories
+        delta_actions = actions[np.newaxis, :, :] - actions[:, np.newaxis, :]
+        delta_goals = goals[np.newaxis, :, :] - goals[:, np.newaxis, :]
+        delta_traj = 0*traj_data[np.newaxis, :, :, :] + traj_data[:, np.newaxis, :, :]
+
+        # Reshape and append
+        all_delta_actions.append(delta_actions.reshape(-1, delta_actions.shape[-1]))
+        all_delta_goals.append(delta_goals.reshape(-1, delta_goals.shape[-1]))
+        all_delta_traj.append(delta_traj.reshape(-1, delta_traj.shape[2], delta_traj.shape[3]))
+
+        count += 1
+        print(count)
+        if subset == count:
+            break
+
+    # Concatenate all collected data
+    all_delta_actions = np.concatenate(all_delta_actions, axis=0)
+    all_delta_goals = np.concatenate(all_delta_goals, axis=0)
+    all_delta_traj = np.concatenate(all_delta_traj, axis=0)
+
+    print(all_delta_actions.shape, all_delta_goals.shape, all_delta_traj.shape)
 
     # Organize data into a dictionary
     valid_data = {
-        "time_series": traj,
-        "classic": delta_actions
+        "time_series": all_delta_traj,
+        "classic": all_delta_actions
     }
-    valid_labels = delta_goals
+    valid_labels = all_delta_goals
 
     return valid_data, valid_labels
 

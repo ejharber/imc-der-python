@@ -66,7 +66,7 @@ class UR5e_IterativeValidation(UR5e_CollectData):
                     #     count += 1
                     #     continue 
 
-                    if count < 30:
+                    if count < 63:
                         count += 1
                         continue 
 

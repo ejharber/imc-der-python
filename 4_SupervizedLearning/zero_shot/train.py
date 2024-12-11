@@ -37,12 +37,12 @@ def plot_curves(train_losses, test_losses, valid_losses, folder):
     plt.show()
 
 # Load train/test data (the filename will be used for the checkpoint folder)
-dataset_name = "N2_all"
-validation_dataset_name = "N3"
-validation_dataset_params_name = "N3"
+dataset_name = "N2_pose_80_zs"
+validation_dataset_name = "N4"
+validation_dataset_params_name = "N2_pose_80"
 
 train_data, train_labels, test_data, test_labels, data_mean, data_std, labels_mean, labels_std = load_data_zeroshot(dataset_name)
-
+print(train_data)
 # Create a folder for saving checkpoints and final models based on dataset name
 checkpoint_folder = f"checkpoints_{dataset_name}"
 os.makedirs(checkpoint_folder, exist_ok=True)

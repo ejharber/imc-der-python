@@ -123,8 +123,8 @@ class Rope(object):
         # for i in range(1, self.N, 2):
         #     plt.plot(q_save[i, :].T, label=str(i))
         # plt.legend()
-        # # plt.show()
-        # # exit()
+        # plt.show()
+        # exit()
 
         # plt.figure("force x")
         # for i in range(0, self.N, 2):
@@ -150,7 +150,7 @@ class Rope(object):
         # plt.show()
         # exit()
 
-        # f_ati = np.array([np.sum(f_save[2::2, :], axis=0), np.sum(f_save[3::2, :], axis=0)])
+        # # f_ati = np.array([np.sum(f_save[2::2, :], axis=0), np.sum(f_save[3::2, :], axis=0)])
 
         sampling = round(self.sample_rate / self.dt)
         f_base = f_base[:, ::sampling]
