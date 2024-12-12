@@ -29,7 +29,7 @@ sys.path.append("../UR5e")
 from CustomRobots import *
 
 sys.path.append("../1_DataCollection")
-from take_data import UR5e_CollectData
+from take_zeroshot_data import UR5e_CollectData
 
 sys.path.append("../4_SupervizedLearning")
 from load_data import load_data_zeroshot
@@ -41,14 +41,6 @@ sys.path.append("../4_SupervizedLearning/iterative")
 from model_iterative import LSTMMLPModel
 
 import matplotlib.pyplot as plt
-
-from scipy.fft import fft, fftfreq
-from scipy.signal import butter, lfilter, freqz, sosfilt, sosfiltfilt
-
-def butter_lowpass_filter(data, cutoff=5, fs=500.0, order=3):
-    sos = butter(order, cutoff, fs=fs, btype='low', analog=False, output='sos')
-    filtered = sosfiltfilt(sos, data)
-    return filtered
 
 class UR5e_EvaluateIterative(UR5e_CollectData):
     def __init__(self, save_path, zeroshot_model_file="N2_all", iterative_model_file="N2_all", params_file="N3_all", num_samples=10000):
@@ -137,7 +129,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
         self.zeroshot_model = self.zeroshot_model.to(self.device)
 
         # Load Iterative Model
-        iterative_filepath = f'../4_SupervizedLearning/iterative/checkpoints_{self.iterative_model_file}/model_checkpoint_200.pth'
+        iterative_filepath = f'../4_SupervizedLearning/iterative/checkpoints_{self.iterative_model_file}/model_checkpoint_100.pth'
         iterative_checkpoint = torch.load(iterative_filepath)
         self.iterative_model = LSTMMLPModel(
             input_size_lstm=iterative_checkpoint['input_size_lstm'],
@@ -167,7 +159,7 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                 if seed is not None:
                     np.random.seed(seed)
                 
-                random_actions = np.array([-90, 100, -180], dtype=np.float32)
+                random_actions = np.array([-100.0, 100.0, -180.0], dtype=np.float32)
                 random_actions = np.tile(random_actions, (num_samples, 1))
                 random_actions[:, 0] += np.random.uniform(-8, 8, num_samples)
                 random_actions[:, 1] += np.random.uniform(-8, 8, num_samples)
@@ -267,11 +259,8 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
                 return best_delta_actions.cpu().numpy()
 
 
-        # self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60", rt_priority=99)
-        # self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60", rt_priority=99)
-
-        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60")
-        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60")
+        self.rtde_c = rtde_control.RTDEControlInterface("192.168.1.60", rt_priority=99)
+        self.rtde_r = rtde_receive.RTDEReceiveInterface("192.168.1.60", rt_priority=99)
 
         print('reset')
         self.reset_data()
@@ -284,13 +273,14 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
         for count in range(self.num_samples):
 
-            # if count < 12: continue 
+            # if count < 10: continue 
 
-            q0 = np.array([180.0, -53.25, 134.66, -171.28, -90.0, 0.0])
-            qf = np.array([180.0, -90.0, 100.0, -180.0, -90.0, 0.0])
-            goal = np.copy(self.goals[count, :])
+            q0 = np.array([180, -80.55, 138.72, -148.02, -90, 0])
+            qf = np.array([180.0, -100.0, 100.0, -180.0, -90.0, 0.0])
 
             for iteration in range(self.num_iterations):
+
+                goal = np.copy(self.goals[count, :])
 
                 print(count, iteration)
 
@@ -388,18 +378,18 @@ class UR5e_EvaluateIterative(UR5e_CollectData):
 
 
                 # Extract actions, goals, and trajectories
-                traj_pos = np.copy(mocap_data_robot_save[round(self.params[-1]) + 500:round(self.params[-1] + 1000), :])
+                traj_pos = np.copy(mocap_data_robot_save[round(self.params[-1]):round(self.params[-1])+500, :])
                 # plt.plot(ati_data_save[:, 2])
-                ati_data_save = butter_lowpass_filter(ati_data_save.T).T
+                # ati_data_save = butter_lowpass_filter(ati_data_save.T).T
                 # plt.plot(ati_data_save[:, 2])
                 # plt.show()
-                traj_force = np.copy(ati_data_save[round(self.params[-2]) + 500:round(self.params[-2] + 1000), 2:3])
+                traj_force = np.copy(ati_data_save[round(self.params[-2]):round(self.params[-2])+500, 2:3])
                 traj = np.append(traj_pos, traj_force, axis=1)
 
                 # plt.plot(traj_force)
                 # plt.show()
 
-                delta_goal = np.copy(goal - mocap_data_robot_save[round(self.params[-1] + 1000), :])
+                delta_goal = np.copy(goal - mocap_data_robot_save[round(self.params[-1])+500, :])
                 print("error", np.linalg.norm(delta_goal))
                 print("delta goal", delta_goal)
 
@@ -411,11 +401,11 @@ def main(args=None):
 
     rclpy.init(args=args)
 
-    save_path = "N2_all_iterative"
-    zeroshot_model_file = "N2_all"
-    iterative_model_file = "dgoal_daction_noise_N2_all_large_new"
-    params_file = "N2_2_all"
-    num_samples = 20
+    save_path = "N2_all_iterative_minus_10g"
+    zeroshot_model_file = "N2_all_80_zs"
+    iterative_model_file = "dgoal_daction_noise_N2_all_80_iter"
+    params_file = "N2_all_80"
+    num_samples = 10
 
     ur5e = UR5e_EvaluateIterative(save_path=save_path, zeroshot_model_file=zeroshot_model_file, iterative_model_file=iterative_model_file, 
                                   params_file=params_file, num_samples=num_samples)

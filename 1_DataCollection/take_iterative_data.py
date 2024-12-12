@@ -28,7 +28,7 @@ from deap import base, creator, tools, algorithms  # Import DEAP components
 sys.path.append("../UR5e")
 from CustomRobots import *
 
-from take_data import UR5e_CollectData
+from take_zeroshot_data import UR5e_CollectData
 
 import matplotlib.pyplot as plt
 
@@ -38,6 +38,44 @@ class UR5e_IterativeValidation(UR5e_CollectData):
 
         self.N = N
         self.num_iterations = 5
+
+    def save_video_frames(self):
+        while True:
+            with self.img_lock:
+                img = self.img.copy() if self.img is not None else None
+
+            if self.video_saving and img is not None:
+                if self.video_writer is None:
+                    with self.video_lock:
+                        video_file = os.path.join(self.save_path, f"{self.video_count}_{self.iteration}.mp4")
+                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                        self.video_writer = cv2.VideoWriter(video_file, fourcc, 20.0, 
+                                                            (self.frame_width, self.frame_height))
+                        self.video_writer_error = False  # Successfully wrote a frame
+                    self.ros_time_camera_save = []
+
+                try:
+                    if img.shape[1] != self.frame_width or img.shape[0] != self.frame_height:
+                        with self.video_lock:
+                            self.video_writer_error = True
+                            self.video_saving = False
+
+                    if not self.video_writer_error:
+                        with self.video_lock:
+                            self.video_writer.write(img)
+                        ros_time = self.get_clock().now()
+                        ros_time_float = ros_time.nanoseconds * 1e-9
+                        self.ros_time_camera_save.append(ros_time_float)
+
+                except Exception as e:
+                    self.get_logger().error(f"Error writing frame: {str(e)}")
+                    with self.video_lock:
+                        self.video_writer_error = True  # Set the error flag to True
+                        self.video_saving = False
+                    # If an error occurs, break the loop (we'll retry the trial)
+                    # break
+
+            time.sleep(1/20)
 
     def take_iterative_validation_data(self):
 
@@ -66,7 +104,7 @@ class UR5e_IterativeValidation(UR5e_CollectData):
                     #     count += 1
                     #     continue 
 
-                    if count < 63:
+                    if count < 60:
                         count += 1
                         continue 
 
@@ -93,6 +131,13 @@ class UR5e_IterativeValidation(UR5e_CollectData):
 
                         for trial in range(10):
 
+                            if not self.rtde_c.isConnected() or not self.rtde_r.isConnected():
+                                self.rtde_c.disconnect()
+                                self.rtde_r.disconnect()
+                                time.sleep(5)
+                                self.rtde_c.reconnect()
+                                self.rtde_r.reconnect()
+
                             self.reset_data()
 
                             time.sleep(0.2)
@@ -102,6 +147,7 @@ class UR5e_IterativeValidation(UR5e_CollectData):
                             self.go_to_home()
 
                             with self.video_lock:
+                                self.iteration = iteration
                                 self.video_count = count
                                 self.video_saving = True
 
@@ -173,7 +219,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Parameters: save path and N (number of swings)
-    save_path = "N4_valid"
+    save_path = "N4_2_iter"
     N = 4 # Number of swings
 
     os.makedirs(save_path, exist_ok=True)

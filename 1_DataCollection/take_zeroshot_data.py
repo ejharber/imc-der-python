@@ -345,6 +345,9 @@ class UR5e_CollectData(Node):
             time.sleep(dt)
 
         for i in range(traj.shape[1]):
+            if not self.rtde_c.isConnected() or not self.rtde_r.isConnected():
+                return False
+
             t_start = self.rtde_c.initPeriod()
             self.rtde_c.servoJ(traj[:, i], velocity, acceleration, dt, lookahead_time, gain)
 

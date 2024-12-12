@@ -87,8 +87,8 @@ def plot_losses(
 
 # Example usage for zeroshot data
 model_paths = [
-    '../../4_SupervizedLearning/zero_shot/checkpoints_N2_pose/final_model_checkpoint.pth',
-    '../../4_SupervizedLearning/zero_shot/checkpoints_N2_all/final_model_checkpoint.pth',
+    '../../4_SupervizedLearning/zero_shot/checkpoints_N2_pose_80_zs/final_model_checkpoint.pth',
+    '../../4_SupervizedLearning/zero_shot/checkpoints_N2_all_80_zs/final_model_checkpoint.pth',
 ]
 
 model_names = [
@@ -107,8 +107,8 @@ plot_losses(
 
 # Example usage for iterative data
 model_paths = [
-    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_pose_large_new/model_checkpoint_200.pth',
-    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_all_large_new/model_checkpoint_200.pth',
+    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_pose_80_iter/model_checkpoint_100.pth',
+    '../../4_SupervizedLearning/iterative/checkpoints_dgoal_daction_noise_N2_all_80_iter/model_checkpoint_100.pth',
 ]
 
 model_names = [

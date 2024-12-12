@@ -38,7 +38,6 @@ def clean_raw_data(folder_name, save_folder_name, N, num_iter):
             else:
                 break
 
-
             traj_rope_tip = data["mocap_data_robot_save"]
             # traj_rope_tip = butter_lowpass_filter(traj_rope_tip.T).T
 
@@ -105,7 +104,7 @@ def clean_raw_data(folder_name, save_folder_name, N, num_iter):
 
 if __name__ == "__main__":
 
-    data_folder_name = "N4_iter"
+    data_folder_name = "N4_2_iter"
     save_folder_name = "filtered_data_iter/" + data_folder_name 
     N = 4
     num_iter = 5
