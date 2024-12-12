@@ -36,7 +36,7 @@ def plot_goals_and_mocap(data_files, params_file_name, j_value):
         data = np.load(data_file)
         params = np.load(os.path.join(os.path.dirname(__file__), f"../../2_SysID/params/{params_file_name}.npz"))["params"]
 
-        main_goal_idx = 1000 + round(params[-1])
+        main_goal_idx = 500 + round(params[-1])
         main_goal_position = data["mocap_data_robot_save"][main_goal_idx, :]
         secondary_goal_position = data["goal_robot_save"]
 
@@ -77,26 +77,27 @@ def plot_goals_and_mocap(data_files, params_file_name, j_value):
 
 import matplotlib.ticker as ticker
 
-def plot_average_mse(mse_values_dict, j_values):
+def plot_average_mse(mse_values_dict, j_values, labels):
     """
     Plot the average MSE from two datasets with comparison.
 
     :param mse_values_dict: Dictionary containing average MSE and standard deviation for each input directory.
     :param j_values: List of corresponding j values.
+    :param labels: List of labels for the datasets.
     """
     plt.figure(figsize=(8, 6))
-    
+
     colors = ['blue', 'orange']
     for idx, (label, mse_data) in enumerate(mse_values_dict.items()):
         mse_values, std_values = mse_data
         mse_values_mm = [mse * 1000 for mse in mse_values]  # Convert MSE to mm
         std_values_mm = [std * 1000 for std in std_values]  # Convert Std Dev to mm
-        
-        plt.plot(j_values, mse_values_mm, marker='o', color=colors[idx], label="Position + Force: Evaluation")
+
+        plt.plot(j_values, mse_values_mm, marker='o', color=colors[idx], label=labels[idx])
         lower_bound = [mse - std for mse, std in zip(mse_values_mm, std_values_mm)]
         upper_bound = [mse + std for mse, std in zip(mse_values_mm, std_values_mm)]
         plt.fill_between(j_values, lower_bound, upper_bound, color=colors[idx], alpha=0.2)
-    
+
     plt.xlabel("Number of Iterations")  # Change X-axis label
     plt.ylabel("Average MSE (mm)")  # Update Y-axis label to mm
     plt.title("Evaluation of Iterative Policy with Force Feedback")
@@ -108,21 +109,18 @@ def plot_average_mse(mse_values_dict, j_values):
 
     # Set the X-axis ticks to every 1
     plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(1))
-    
+
     plt.show()
 
-
 def main():
-    # input_dirs = ['../../5_Evaluation/N2_all_iterative/', '../../5_Evaluation/N2_pose_iterative/']
-    input_dirs = ['../../5_Evaluation/N2_all_iterative/']
+    input_dirs = ['../../5_Evaluation/N2_pose_iterative/', '../../5_Evaluation/N2_all_iterative/']
     desired_j_values = [0, 1, 2, 3, 4]
-    params_file_name = "N3"
+    params_file_name = "N2_all_80"
 
+    labels = ["Position: Evaluation", "Position + Force: Evaluation"]
     mse_values_dict = {}
 
-    for input_dir in input_dirs:
-        label = os.path.basename(os.path.normpath(input_dir))
-        labels = ["Position + Force: Evaluation"]
+    for input_dir, label in zip(input_dirs, labels):
         data_files_by_j = filter_files_by_j(input_dir, desired_j_values)
 
         average_mse_values = []
@@ -142,7 +140,7 @@ def main():
 
         print(average_mse_values)
 
-    plot_average_mse(mse_values_dict, desired_j_values)
+    plot_average_mse(mse_values_dict, desired_j_values, labels)
 
 if __name__ == "__main__":
     main()

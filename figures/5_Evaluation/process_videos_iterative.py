@@ -5,26 +5,41 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from moviepy import VideoFileClip
+import subprocess
 
 # Ensure the Agg backend is used for non-interactive plotting
 import matplotlib
 matplotlib.use('Agg')
 
-def get_video_and_data_files(directory):
+def get_video_and_data_files_by_i(directory, i, num_iter=5):
     """
     Get a list of .mp4 video files and their corresponding .npz data files in a directory.
     """
     video_files = []
     data_files = []
 
-    for file in os.listdir(directory):
-        if file.endswith('.mp4'):
-            base_name = os.path.splitext(file)[0]
-            data_file = f"{base_name}.npz"
-            data_path = os.path.join(directory, data_file)
-            if os.path.exists(data_path):
-                video_files.append(os.path.join(directory, file))
-                data_files.append(data_path)
+    for j in range(num_iter):
+        video_file = directory + "/" + str(i) + "_" + str(j) + ".mp4"
+        data_file = directory + "/" + str(i) + "_" + str(j) + ".npz"
+        if os.path.exists(video_file) and os.path.exists(data_file):
+            video_files.append(video_file)
+            data_files.append(data_file)
+
+    return video_files, data_files
+
+def get_video_and_data_files_by_j(directory, j, num_samples=20):
+    """
+    Get a list of .mp4 video files and their corresponding .npz data files in a directory.
+    """
+    video_files = []
+    data_files = []
+
+    for i in range(num_samples):
+        video_file = directory + "/" + str(i) + "_" + str(j) + ".mp4"
+        data_file = directory + "/" + str(i) + "_" + str(j) + ".npz"
+        if os.path.exists(video_file) and os.path.exists(data_file):
+            video_files.append(video_file)
+            data_files.append(data_file)
 
     return video_files, data_files
 
@@ -52,7 +67,7 @@ def overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_nam
         return
 
     # Get the goal positions and frame index for the '+' symbol
-    goals, goal_frame_idx = get_plus_positions_from_video(data_file, params_file_name)
+    goals, goals2, goal_frame_idx = get_plus_positions_from_video(data_file, params_file_name)
 
     # Open the video
     cap = cv2.VideoCapture(video_file)
@@ -87,6 +102,8 @@ def overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_nam
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         ax.imshow(rgb_frame)
 
+        ax.plot(goals2[0, 0], goals2[0, 1], marker='+', color='green', markersize=18, linestyle='', label='Desired')
+
         # Explicitly add the '+' symbol with a label
         if frame_idx >= goal_frame_idx:
             ax.plot(goals[0], goals[1], marker='+', color='gold', markersize=12, linestyle='', label='Measured')  # Plot '+' marker
@@ -112,7 +129,7 @@ def overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_nam
     out.release()
     print(f"Processed video saved: {output_file}")
 
-def overlay_videos_with_matplotlib(video_files, data_files, output_path, params_file_name):
+def overlay_videos_with_matplotlib(video_files, data_files, output_path, params_file_name, alpha):
     """
     Overlay multiple videos into a single video by combining frames using Matplotlib.
     """
@@ -150,18 +167,22 @@ def overlay_videos_with_matplotlib(video_files, data_files, output_path, params_
 
             # Convert frame to RGB for Matplotlib
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            ax.imshow(rgb_frame, extent=[0, frame_width, frame_height, 0], alpha=0.1)
+            ax.imshow(rgb_frame, extent=[0, frame_width, frame_height, 0], alpha=alpha)
 
             # Overlay '+' symbol
-            goals, goal_frame_idx = plus_positions[video_idx]
+            goals, goals2, goal_frame_idx = plus_positions[video_idx]
 
             if video_idx == 0:
+                ax.plot(goals2[0, 0], goals2[0, 1], marker='+', color='green', markersize=18, linestyle='', label='Desired')
+
                 # Explicitly add the '+' symbol with a label
                 if frame_idx >= goal_frame_idx:
                     ax.plot(goals[0], goals[1], marker='+', color='gold', markersize=12, linestyle='', label='Measured')  # Plot '+' marker
                 else:
                     ax.plot(-100, -100, marker='+', color='gold', markersize=12, linestyle='', label='Measured')  # Plot '+' marker
             else:
+                ax.plot(goals2[0, 0], goals2[0, 1], marker='+', color='green', markersize=18, linestyle='', label='')
+
                 # Explicitly add the '+' symbol with a label
                 if frame_idx >= goal_frame_idx:
                     ax.plot(goals[0], goals[1], marker='+', color='gold', markersize=12, linestyle='')  # Plot '+' marker
@@ -230,6 +251,8 @@ def append_videos_with_matplotlib(video_files, data_files, output_path, params_f
 
     # Loop through each video sequentially
     goals = np.zeros((0, 2))
+    goals2 = np.zeros((0, 2))
+
     for video_idx, cap in enumerate(caps):
         goal, goal2, goal_frame_idx = plus_positions[video_idx]
         print(goal2)
@@ -261,8 +284,7 @@ def append_videos_with_matplotlib(video_files, data_files, output_path, params_f
                 goals = np.append(goals, [goal], axis=0)
                 goal_frame_idx = np.inf
 
-            print(goal2[0, 0], goal2[0, 1], goals)
-            ax.plot(1266.,   724., marker='+', color='green', markersize=18, linestyle='', label='Desired')
+            ax.plot(goal2[:, 0], goal2[:, 1], marker='+', color='green', markersize=18, linestyle='', label='Desired')
 
             if goals.shape[0] > 0:
                 ax.plot(goals[:, 0], goals[:, 1], marker='+', color='gold', markersize=12, linestyle='', label='Measured')
@@ -272,10 +294,18 @@ def append_videos_with_matplotlib(video_files, data_files, output_path, params_f
             # Add legend (appears only once)
             ax.legend(fontsize=16, loc='upper left')
 
+            if not int(speed_factor) == 1:
+                # Add speed factor text
+                ax.text(
+                    20, frame_height - 50,  # Position in pixels (bottom-left corner)
+                    f"{int(speed_factor)}x", color="white", fontsize=32, 
+                    bbox=dict(facecolor="black", alpha=0.5, edgecolor="none")
+                )
+
             # Add speed factor text
             ax.text(
-                20, frame_height - 50,  # Position in pixels (bottom-left corner)
-                f"{int(speed_factor)}x", color="white", fontsize=32, 
+                frame_width - 540, frame_height - 50,  # Position in pixels (bottom-left corner)
+                f"Iteration: {int(video_idx)}", color="white", fontsize=32, 
                 bbox=dict(facecolor="black", alpha=0.5, edgecolor="none")
             )
 
@@ -301,10 +331,83 @@ def append_videos_with_matplotlib(video_files, data_files, output_path, params_f
     plt.close(fig)
     print(f"Appended video saved: {output_path}")
 
-import os
-from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
-from moviepy import VideoFileClip
-import subprocess
+def overlay_and_append(video_files, data_files, output_path, params_file_name, alpha=0.5, speed_factor=1):
+    """
+    Combine videos in a 2D structure. The first dimension overlays videos,
+    and the second dimension appends the results sequentially.
+    
+    Args:
+        video_files (list of list): 2D array of video file paths.
+        data_files (list of list): 2D array of data file paths.
+        output_path (str): Path to save the final video.
+        params_file_name (str): Parameter file name for overlay positions.
+        alpha (float): Alpha transparency for overlays (default: 0.5).
+        speed_factor (float): Speed adjustment for appended videos (default: 1).
+    """
+    if not video_files or not video_files[0]:
+        print("No video files to process.")
+        return
+
+    # Determine properties based on the first video
+    first_video = video_files[0][0]
+    cap = cv2.VideoCapture(first_video)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    cap.release()
+
+    new_fps = int(fps * speed_factor)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, new_fps, (frame_width, frame_height))
+
+    fig, ax = plt.subplots(figsize=(frame_width / 200, frame_height / 200), dpi=200)
+
+    for video_group, data_group in zip(video_files, data_files):
+        # Overlay videos in the current group
+        caps = [cv2.VideoCapture(file) for file in video_group]
+        min_frames = min(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) for cap in caps)
+
+        plus_positions = [get_plus_positions_from_video(data, params_file_name) for data in data_group]
+
+        for frame_idx in range(min_frames):
+            ax.clear()
+            ax.set_xlim(0, frame_width)
+            ax.set_ylim(frame_height, 0)
+
+            for video_idx, cap in enumerate(caps):
+                ret, frame = cap.read()
+                if not ret:
+                    continue
+
+                # Convert frame to RGB for Matplotlib
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                ax.imshow(rgb_frame, extent=[0, frame_width, frame_height, 0], alpha=alpha)
+
+                # Overlay '+' markers
+                goals, goals2, goal_frame_idx = plus_positions[video_idx]
+                if frame_idx >= goal_frame_idx:
+                    ax.plot(goals[0], goals[1], marker='+', color='gold', markersize=12, linestyle='')
+                ax.plot(goals2[0, 0], goals2[0, 1], marker='+', color='green', markersize=18, linestyle='')
+
+            plt.axis('off')
+            plt.tight_layout()
+            fig.canvas.draw()
+
+            # Convert Matplotlib figure to frame
+            plt_frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+            plt_frame = plt_frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            plt_frame = cv2.cvtColor(plt_frame, cv2.COLOR_RGB2BGR)
+
+            # Write the frame
+            out.write(plt_frame)
+
+        # Release resources for the current group
+        for cap in caps:
+            cap.release()
+
+    out.release()
+    plt.close(fig)
+    print(f"Final video saved: {output_path}")
 
 def convert_mp4_to_gif(input_folder, output_folder, start_time=0, end_time=10):
     # Ensure the output folder exists
@@ -362,28 +465,41 @@ def main():
     directory = "N2_all_iterative"
     input_dir = '../../5_Evaluation/' + directory
     output_dir = './' + directory
+    params_file_name = "N2_all_80"
     os.makedirs(output_dir, exist_ok=True)
+    num_samples = 20
+    num_iterations = 5
 
-    video_files, data_files = get_video_and_data_files(input_dir)
+    # for i in range(num_samples):
 
-    processed_videos = []
-    for i in range(len(video_files)):
-        video_file = video_files[i]
-        data_file = data_files[i]
-        output_file = os.path.join(output_dir, f"processed_{os.path.basename(video_file)}")
-        # overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_name="N2", output_file=output_file)
-        processed_videos.append(output_file)
+    #     video_files, data_files = get_video_and_data_files_by_i(input_dir, i, num_iterations)
 
-    if video_files and data_files:
-        output_file = os.path.join(output_dir, "overlayed_video.mp4")
-        # overlay_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2")
+    #     print(video_files, data_files)
 
-    if video_files and data_files:
-        for speed_factor in [2, 4, 8, 16]:
-            output_file = os.path.join(output_dir, f"appended_video_{speed_factor}.mp4")
-            # append_videos_with_matplotlib(video_files, data_files, output_file, params_file_name="N2", speed_factor=speed_factor)
+    #     for j in range(len(video_files)):
+    #         video_file = video_files[j]
+    #         data_file = data_files[j]
+    #         output_file = os.path.join(output_dir, f"processed_{os.path.basename(video_file)}")
+    #         # overlay_plus_on_video_with_matplotlib(video_file, data_file, params_file_name, output_file=output_file)
 
-    convert_mp4_to_gif(directory, directory, start_time=0, end_time=1e6)  # Convert 0-10 seconds of each video
+    #     if video_files and data_files:
+    #         output_file = os.path.join(output_dir, f"overlayed_video_i{i}.mp4")
+    #         overlay_videos_with_matplotlib(video_files, data_files, output_file, params_file_name, alpha=0.5)
+
+    #     if video_files and data_files:
+    #         for speed_factor in [1, 2, 4, 8, 16]:
+    #             output_file = os.path.join(output_dir, f"appended_video_{i}_{speed_factor}x.mp4")
+    #             append_videos_with_matplotlib(video_files, data_files, output_file, params_file_name, speed_factor=speed_factor)
+
+    for j in range(num_iterations):
+
+        video_files, data_files = get_video_and_data_files_by_j(input_dir, j, num_samples)
+
+        if video_files and data_files:
+            output_file = os.path.join(output_dir, f"overlayed_video_j{j}.mp4")
+            overlay_videos_with_matplotlib(video_files, data_files, output_file, params_file_name, alpha=0.2)
+
+    # convert_mp4_to_gif(directory, directory, start_time=0, end_time=1e6)  # Convert 0-10 seconds of each video
 
 if __name__ == "__main__":
     main()
